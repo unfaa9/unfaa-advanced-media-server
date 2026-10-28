@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum FileStatus {
+  pending
+  active
+  deleted
+  purged
+
+  @@map("file_status")
+}
+
+model ApiKey {
+  id         String    @id @db.Uuid
+  name       String
+  prefix     String
+  keyHash    Bytes     @unique @map("key_hash")
+  scopes     String[]
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  lastUsedAt DateTime? @map("last_used_at") @db.Timestamptz
+  expiresAt  DateTime? @map("expires_at") @db.Timestamptz
+  revokedAt  DateTime? @map("revoked_at") @db.Timestamptz
+
+  @@map("api_keys")
+}
+
+// One customer of the backend (e.g. an agency). Created on first upload.
+model Account {
+  id         String    @id @db.Uuid
+  ref        String    @unique
+  quotaBytes BigInt?   @map("quota_bytes") // null = unlimited
+  usedBytes  BigInt    @default(0) @map("used_bytes")
+  fileCount  Int       @default(0) @map("file_count")
+  createdAt  DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  deletedAt  DateTime? @map("deleted_at") @db.Timestamptz
+  files      File[]
+
+  @@map("accounts")
+}
+
+model File {
+  id                String     @id @db.Uuid // UUIDv7
+  accountId         String?    @map("account_id") @db.Uuid
+  account           Account?   @relation(fields: [accountId], references: [id])
+  status            FileStatus @default(pending)
+  kind              String // image | video | document
+  mime              String
+  ext               String
+  sizeBytes         BigInt     @map("size_bytes") // stored size (after compression)
+  originalSizeBytes BigInt     @map("original_size_bytes")
+  sha256            Bytes // stored bytes
+  uploadSha256      Bytes      @map("upload_sha256") // uploaded bytes, used for dedup
+  width             Int?
+  height            Int?
+  originalName      String?    @map("original_name")
+  purpose           String?
+  meta              Json       @default("{}")
+  createdAt         DateTime   @default(now()) @map("created_at") @db.Timestamptz
+  confirmedAt       DateTime?  @map("confirmed_at") @db.Timestamptz
+  deletedAt         DateTime?  @map("deleted_at") @db.Timestamptz
+  purgedAt          DateTime?  @map("purged_at") @db.Timestamptz
+  refs              FileRef[]
+
+  @@index([accountId, createdAt(sort: Desc)])
+  @@map("files")
+}
+
+// One row per owner using a file; the file is deleted when the last ref goes.
+model FileRef {
+  fileId    String   @map("file_id") @db.Uuid
+  file      File     @relation(fields: [fileId], references: [id])
+  ownerRef  String   @map("owner_ref")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@id([fileId, ownerRef])
+  @@map("file_refs")
+}
+
+model Job {
+  id          BigInt    @id @default(autoincrement())
+  kind        String // cdn_purge
+  payload     Json
+  runAt       DateTime  @default(now()) @map("run_at") @db.Timestamptz
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(10) @map("max_attempts")
+  lastError   String?   @map("last_error")
+  lockedUntil DateTime? @map("locked_until") @db.Timestamptz
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("jobs")
+}
+
+// Last run of each periodic job; claimed with an atomic UPDATE.
+model JobRun {
+  name      String   @id
+  nextRunAt DateTime @map("next_run_at") @db.Timestamptz
+  lastRunAt DateTime? @map("last_run_at") @db.Timestamptz
+  lastError String?  @map("last_error")
+
+  @@map("job_runs")
+}
+
+model IdempotencyKey {
+  key         String   @id
+  fingerprint String
+  status      Int
+  response    Json
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("idempotency_keys")
+}

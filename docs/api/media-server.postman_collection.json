@@ -1,0 +1,1025 @@
+{
+  "info": {
+    "name": "Media Server API v1",
+    "description": "All endpoints of the media server (see `docs/api/README.md`).\n\nSet `mediaBaseUrl` (local `http://localhost:8080`, production `https://media.unfaa.com`, inside Coolify `http://media-server:8080`) and `apiKey` (`msk_…`, created with `media-server admin key create`).\n\nSuggested order: Upload → Get/Confirm → Signed URL → Delivery → Delete → Restore.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{apiKey}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Correlate requests with server logs; quote X-Request-Id when reporting problems.",
+          "pm.request.headers.upsert({ key: 'X-Request-Id', value: pm.variables.replaceIn('{{$guid}}') });"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "mediaBaseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "apiKey",
+      "value": "msk_replace_me"
+    },
+    {
+      "key": "fileId",
+      "value": ""
+    },
+    {
+      "key": "fileIds",
+      "value": "[\"{{fileId}}\"]"
+    },
+    {
+      "key": "fileExt",
+      "value": "jpg"
+    },
+    {
+      "key": "accountRef",
+      "value": "agency_42"
+    },
+    {
+      "key": "ownerRefPrefix",
+      "value": "user:123:"
+    },
+    {
+      "key": "actor",
+      "value": "staff_17"
+    },
+    {
+      "key": "signedUrl",
+      "value": ""
+    },
+    {
+      "key": "sensitiveUrl",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "auth": {
+        "type": "noauth"
+      },
+      "description": "Liveness and readiness probes (no API key).",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Process is up.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/healthz",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Database and storage are reachable.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/readyz",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "readyz"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files – upload",
+      "item": [
+        {
+          "name": "Upload file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Retries with the same key within 24 h replay the original response"
+              }
+            ],
+            "description": "Uploads exactly one file (scope `files:write`). Choose a file in the Body tab. Type is detected by magic bytes: JPEG, PNG, WebP, GIF, MP4, WebM, PDF, DOCX. Saves `fileId` and `fileExt` for later requests.\n\n`400` bad params · `401` · `403` · `413` too large · `415` type not allowed · `422` corrupt · `429` · `507` quota/disk.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files?visibility=public&confirm=true",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files"
+              ],
+              "query": [
+                {
+                  "key": "visibility",
+                  "value": "public",
+                  "description": "Required: public | private | sensitive"
+                },
+                {
+                  "key": "confirm",
+                  "value": "true",
+                  "description": "true = active immediately; false = pending until confirm (auto-removed after 24 h)"
+                },
+                {
+                  "key": "purpose",
+                  "value": "avatar",
+                  "description": "Free label, [A-Za-z0-9_.:@-], ≤ 128",
+                  "disabled": true
+                },
+                {
+                  "key": "owner_ref",
+                  "value": "user:123:avatar",
+                  "description": "<entity>:<id>:<field>; enables delete-by-owner",
+                  "disabled": true
+                },
+                {
+                  "key": "account",
+                  "value": "{{accountRef}}",
+                  "description": "Customer id for per-account quota (required if REQUIRE_ACCOUNT=true)",
+                  "disabled": true
+                },
+                {
+                  "key": "actor",
+                  "value": "{{actor}}",
+                  "description": "End-user id; required for sensitive uploads",
+                  "disabled": true
+                },
+                {
+                  "key": "optimize",
+                  "value": "false",
+                  "description": "false keeps image pixels untouched (metadata still stripped)",
+                  "disabled": true
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Exactly one part named `file` (≤ 10 MB)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ext = {'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','video/mp4':'mp4',",
+                  "  'video/webm':'webm','application/pdf':'pdf',",
+                  "  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx'};",
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "  const f = pm.response.json();",
+                  "  pm.collectionVariables.set('fileId', f.id);",
+                  "  if (ext[f.mime]) pm.collectionVariables.set('fileExt', ext[f.mime]);",
+                  "}",
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ],
+          "response": [
+            {
+              "name": "201 Created",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Idempotency-Key",
+                    "value": "{{$guid}}",
+                    "description": "Retries with the same key within 24 h replay the original response"
+                  }
+                ],
+                "description": "Uploads exactly one file (scope `files:write`). Choose a file in the Body tab. Type is detected by magic bytes: JPEG, PNG, WebP, GIF, MP4, WebM, PDF, DOCX. Saves `fileId` and `fileExt` for later requests.\n\n`400` bad params · `401` · `403` · `413` too large · `415` type not allowed · `422` corrupt · `429` · `507` quota/disk.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+                "url": {
+                  "raw": "{{mediaBaseUrl}}/api/v1/files?visibility=public&confirm=true",
+                  "host": [
+                    "{{mediaBaseUrl}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "files"
+                  ],
+                  "query": [
+                    {
+                      "key": "visibility",
+                      "value": "public",
+                      "description": "Required: public | private | sensitive"
+                    },
+                    {
+                      "key": "confirm",
+                      "value": "true",
+                      "description": "true = active immediately; false = pending until confirm (auto-removed after 24 h)"
+                    },
+                    {
+                      "key": "purpose",
+                      "value": "avatar",
+                      "description": "Free label, [A-Za-z0-9_.:@-], ≤ 128",
+                      "disabled": true
+                    },
+                    {
+                      "key": "owner_ref",
+                      "value": "user:123:avatar",
+                      "description": "<entity>:<id>:<field>; enables delete-by-owner",
+                      "disabled": true
+                    },
+                    {
+                      "key": "account",
+                      "value": "{{accountRef}}",
+                      "description": "Customer id for per-account quota (required if REQUIRE_ACCOUNT=true)",
+                      "disabled": true
+                    },
+                    {
+                      "key": "actor",
+                      "value": "{{actor}}",
+                      "description": "End-user id; required for sensitive uploads",
+                      "disabled": true
+                    },
+                    {
+                      "key": "optimize",
+                      "value": "false",
+                      "description": "false keeps image pixels untouched (metadata still stripped)",
+                      "disabled": true
+                    }
+                  ]
+                },
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": [],
+                      "description": "Exactly one part named `file` (≤ 10 MB)"
+                    }
+                  ]
+                }
+              },
+              "status": "Created",
+              "code": 201,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"id\": \"0192f3c4-7a1b-7c2e-9d10-5b6c7d8e9f00\",\n  \"status\": \"pending\",\n  \"visibility\": \"public\",\n  \"kind\": \"image\",\n  \"mime\": \"image/png\",\n  \"size\": 482113,\n  \"original_size\": 1904220,\n  \"compressed\": true,\n  \"sha256\": \"9f86d0\\u2026\",\n  \"width\": 1600,\n  \"height\": 1067,\n  \"url\": \"https://media.unfaa.com/f/0192f3c4-7a1b-7c2e-9d10-5b6c7d8e9f00.png\",\n  \"variants_url_template\": \"https://media.unfaa.com/i/0192f3c4-7a1b-7c2e-9d10-5b6c7d8e9f00/{w}.{fmt}\",\n  \"account\": \"agency_42\",\n  \"purpose\": \"product\",\n  \"original_name\": \"shoe.png\",\n  \"created_at\": \"2026-10-10T08:00:00Z\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Upload sensitive file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Retries with the same key within 24 h replay the original response"
+              }
+            ],
+            "description": "Sensitive tier: encrypted at rest, audit-logged, no variants. `actor` is mandatory. `400` if the sensitive tier is not enabled on the deployment.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files?visibility=sensitive&confirm=true&account={{accountRef}}&actor={{actor}}&purpose=passport",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files"
+              ],
+              "query": [
+                {
+                  "key": "visibility",
+                  "value": "sensitive",
+                  "description": "Sensitive tier"
+                },
+                {
+                  "key": "confirm",
+                  "value": "true",
+                  "description": ""
+                },
+                {
+                  "key": "account",
+                  "value": "{{accountRef}}",
+                  "description": "Customer id"
+                },
+                {
+                  "key": "actor",
+                  "value": "{{actor}}",
+                  "description": "Required for sensitive"
+                },
+                {
+                  "key": "purpose",
+                  "value": "passport",
+                  "description": "Free label"
+                }
+              ]
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Exactly one part named `file` (≤ 10 MB)"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ext = {'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/gif':'gif','video/mp4':'mp4',",
+                  "  'video/webm':'webm','application/pdf':'pdf',",
+                  "  'application/vnd.openxmlformats-officedocument.wordprocessingml.document':'docx'};",
+                  "if (pm.response.code === 201 || pm.response.code === 200) {",
+                  "  const f = pm.response.json();",
+                  "  pm.collectionVariables.set('fileId', f.id);",
+                  "  if (ext[f.mime]) pm.collectionVariables.set('fileExt', ext[f.mime]);",
+                  "}",
+                  "pm.test('201 Created', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Files – metadata & lifecycle",
+      "item": [
+        {
+          "name": "Get file",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Current state and metadata of one file (scope `files:read`). `404` unknown id.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "List files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Newest first, cursor paging: `{ \"data\": [...], \"next_cursor\": \"…\"|null }` (scope `files:read`).\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files?limit=50",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "≤ 200"
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "next_cursor from the previous page",
+                  "disabled": true
+                },
+                {
+                  "key": "purpose",
+                  "value": "",
+                  "description": "Filter by purpose",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "pending | active | deleted | purged",
+                  "disabled": true
+                },
+                {
+                  "key": "account",
+                  "value": "{{accountRef}}",
+                  "description": "Filter by account",
+                  "disabled": true
+                },
+                {
+                  "key": "owner_ref",
+                  "value": "user:123:avatar",
+                  "description": "Filter by owner_ref",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Confirm file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "`pending → active`; idempotent for `active` (scope `files:write`). `409 invalid_state` if deleted/purged.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/confirm",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "confirm"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner_ref\": \"post:77:images\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Confirm files (batch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Confirm up to 100 ids, all-or-nothing (scope `files:write`). Any unknown (`404`) or unconfirmable (`409`) id changes nothing.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/confirm",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "confirm"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": {{fileIds}},\n  \"owner_ref\": \"post:77:images\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files – delete & restore",
+      "item": [
+        {
+          "name": "Delete file",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Soft-delete; origin returns 404 immediately, CDN purge queued (scope `files:delete`). Idempotent `204`; unknown id `404`. Restorable for 7 days.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}"
+              ],
+              "query": [
+                {
+                  "key": "actor",
+                  "value": "{{actor}}",
+                  "description": "Recorded in the audit log for sensitive files",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete by owner",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Soft-deletes every pending/active file whose owner_ref starts with the prefix (≥ 3 chars, must end with `:`). Returns `{ \"deleted\": n }` (scope `files:delete`).\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/delete-by-owner",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "delete-by-owner"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner_ref_prefix\": \"{{ownerRefPrefix}}\",\n  \"actor\": \"{{actor}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Restore file",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "description": "`deleted → active` within 7 days (scope `files:delete`). `409 invalid_state`, `507 quota_exceeded`.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/restore",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "restore"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Signed URLs",
+      "item": [
+        {
+          "name": "Signed URL (private)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Expiring URL for a private file (scope `files:read`). `ttl` default 900, max 604800 s; `variant` optional, images only (w ∈ 64,128,256,512,768,1024,1536,2048; fmt jpg|png, webp|avif on libvips). For a public file this returns its permanent URL. Saves `signedUrl`.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/signed-url",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "signed-url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ttl\": 900,\n  \"variant\": {\n    \"w\": 640,\n    \"fmt\": \"jpg\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set('signedUrl', pm.response.json().url);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Signed URL (sensitive)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Grant-bound URL for a sensitive file: `actor` required, `reason` optional (≤ 500), `ttl` ≤ 300, no variant. Writes a `url_issued` audit event. Saves `sensitiveUrl`.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/signed-url",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "signed-url"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"actor\": \"{{actor}}\",\n  \"reason\": \"visa processing\",\n  \"ttl\": 120\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 OK', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) pm.collectionVariables.set('sensitiveUrl', pm.response.json().url);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "Create / update account",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "description": "Set an account's quota (scope `accounts:write`). `quota_bytes` required; `null` = unlimited.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/accounts/{{accountRef}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountRef}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quota_bytes\": 21474836480\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get account",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Usage: `ref`, `quota_bytes`, `used_bytes`, `file_count`, `usage_percent` (scope `accounts:read`).\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/accounts/{{accountRef}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountRef}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Delete account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "description": "Soft-deletes all of the account's files and marks it deleted. Returns `{ \"deleted_files\": n }` (scope `accounts:write`).\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/accounts/{{accountRef}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountRef}}"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Audit logs",
+      "item": [
+        {
+          "name": "File audit logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Audit trail of a sensitive file (scope `audit:read`). Events: uploaded, url_issued, viewed, view_denied, deleted, restored, purged. Newest first.\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/audit-logs",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "audit-logs"
+              ],
+              "query": [
+                {
+                  "key": "event",
+                  "value": "viewed",
+                  "description": "Filter by event",
+                  "disabled": true
+                },
+                {
+                  "key": "from",
+                  "value": "2026-10-01T00:00:00Z",
+                  "description": "RFC 3339",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "RFC 3339",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "next_cursor",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "≤ 500",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Account audit logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "All audit events for an account's sensitive files (scope `audit:read`).\n\nErrors are `application/problem+json`; see `docs/api/errors.md`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/accounts/{{accountRef}}/audit-logs?event=viewed",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountRef}}",
+                "audit-logs"
+              ],
+              "query": [
+                {
+                  "key": "event",
+                  "value": "viewed",
+                  "description": "Filter by event"
+                },
+                {
+                  "key": "from",
+                  "value": "2026-10-01T00:00:00Z",
+                  "description": "RFC 3339",
+                  "disabled": true
+                },
+                {
+                  "key": "to",
+                  "value": "",
+                  "description": "RFC 3339",
+                  "disabled": true
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "next_cursor",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "≤ 500",
+                  "disabled": true
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delivery",
+      "auth": {
+        "type": "noauth"
+      },
+      "description": "Browser-facing reads, no API key. GET and HEAD; `Range` and `If-None-Match` supported.",
+      "item": [
+        {
+          "name": "Public original",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Public original, CDN cached.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/f/{{fileId}}.{{fileExt}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "f",
+                "{{fileId}}.{{fileExt}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Public original (HEAD)",
+          "request": {
+            "method": "HEAD",
+            "header": [],
+            "description": "Headers only.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/f/{{fileId}}.{{fileExt}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "f",
+                "{{fileId}}.{{fileExt}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Public original (Range)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Range",
+                "value": "bytes=0-1023"
+              }
+            ],
+            "description": "Partial content (video seeking) → `206`.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/f/{{fileId}}.{{fileExt}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "f",
+                "{{fileId}}.{{fileExt}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Public image variant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Resized image. w ∈ 64,128,256,512,768,1024,1536,2048; fmt jpg|png (webp|avif on libvips). Never upscaled.",
+            "url": {
+              "raw": "{{mediaBaseUrl}}/i/{{fileId}}/512.jpg",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "i",
+                "{{fileId}}",
+                "512.jpg"
+              ]
+            }
+          }
+        },
+        {
+          "name": "Private file (signed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "`/p/…` URL from *Signed URL (private)*. Tampered `403`, expired `410`.",
+            "url": {
+              "raw": "{{signedUrl}}"
+            }
+          }
+        },
+        {
+          "name": "Sensitive file (signed)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "`/s/…` URL from *Signed URL (sensitive)*. Writes a `viewed` audit event; `Cache-Control: no-store`.",
+            "url": {
+              "raw": "{{sensitiveUrl}}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

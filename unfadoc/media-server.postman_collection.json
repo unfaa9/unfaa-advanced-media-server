@@ -1,0 +1,755 @@
+{
+  "info": {
+    "name": "Unfaa Media Server API v1 (Node)",
+    "description": "All endpoints of the Node media server — see `unfadoc/features_implemented.md`.\n\nSet `mediaBaseUrl` (local `http://localhost:5000`, production `https://media.unfaa.com`) and `apiKey` (`msk_…`, created with `npm run admin -- key create --name <name>`).\n\nSuggested order: Upload file → Upload same file again → Get → Add/Remove reference → Delivery → Delete (force) → Restore.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{apiKey}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "mediaBaseUrl",
+      "value": "http://localhost:5000"
+    },
+    {
+      "key": "apiKey",
+      "value": "msk_replace_me"
+    },
+    {
+      "key": "fileId",
+      "value": ""
+    },
+    {
+      "key": "fileExt",
+      "value": "jpg"
+    },
+    {
+      "key": "accountRef",
+      "value": "agency_42"
+    },
+    {
+      "key": "ownerRefPrefix",
+      "value": "user:123:"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/healthz",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            },
+            "description": "Process is up. No auth.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/readyz",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "readyz"
+              ]
+            },
+            "description": "Database reachable and storage writable → 200, otherwise 503 with `checks`.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files – upload",
+      "item": [
+        {
+          "name": "Upload file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Recommended. A retry with the same key, same query and same bytes replays the first response (`Idempotent-Replay: true`)."
+              }
+            ],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files?confirm=true&purpose=avatar&owner_ref=user:123:avatar&account={{accountRef}}&visibility=public",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files"
+              ],
+              "query": [
+                {
+                  "key": "confirm",
+                  "value": "true",
+                  "description": "true = active now; false (default) = pending until confirm, auto-removed after 24 h"
+                },
+                {
+                  "key": "purpose",
+                  "value": "avatar",
+                  "description": "free label [A-Za-z0-9_.:@-] ≤ 128"
+                },
+                {
+                  "key": "owner_ref",
+                  "value": "user:123:avatar",
+                  "description": "first reference, <entity>:<id>:<field>"
+                },
+                {
+                  "key": "account",
+                  "value": "{{accountRef}}",
+                  "description": "your customer id; per-account quota + dedup scope"
+                },
+                {
+                  "key": "visibility",
+                  "value": "public",
+                  "description": "optional; only `public` is accepted",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Streams exactly one multipart part named `file`. Type is detected from the file's bytes; name/extension/Content-Type are ignored.\n\nImages are always compressed at the same resolution (EXIF/GPS stripped, orientation applied); the result is never larger than the upload.\n\n**201** = new file. **200** + `\"deduplicated\": true` = identical bytes already live in this account; the existing file is returned and `owner_ref` is added as a reference.\n\nScope `files:write`. Saves `fileId` / `fileExt` for the other requests.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Exactly one part named `file`. Pick any image, MP4, WebM, PDF or DOCX ≤ 10 MB."
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ok = pm.response.code === 201 || pm.response.code === 200;",
+                  "pm.test('upload accepted (201 new, 200 deduplicated)', () => pm.expect(ok).to.be.true);",
+                  "if (ok) {",
+                  "  const f = pm.response.json();",
+                  "  pm.collectionVariables.set('fileId', f.id);",
+                  "  pm.collectionVariables.set('fileExt', f.url ? f.url.split('.').pop() : '');",
+                  "  pm.test('compressed size never larger than original', () => pm.expect(f.size).to.be.at.most(f.original_size));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upload same file again (dedup)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files?confirm=true&owner_ref=user:456:avatar&account={{accountRef}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files"
+              ],
+              "query": [
+                {
+                  "key": "confirm",
+                  "value": "true"
+                },
+                {
+                  "key": "owner_ref",
+                  "value": "user:456:avatar"
+                },
+                {
+                  "key": "account",
+                  "value": "{{accountRef}}"
+                }
+              ]
+            },
+            "description": "Upload the **same file** again with a different owner. Expect **200** with `deduplicated: true`, the same `id`, and both owners in `refs`.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "Exactly one part named `file`. Pick any image, MP4, WebM, PDF or DOCX ≤ 10 MB."
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('deduplicated', () => { pm.response.to.have.status(200); pm.expect(pm.response.json().deduplicated).to.eql(true); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Files – metadata & lifecycle",
+      "item": [
+        {
+          "name": "Get file",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}"
+              ]
+            },
+            "description": "File metadata including `refs` and `ref_count`. Scope `files:read`."
+          }
+        },
+        {
+          "name": "List files",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files?limit=50&cursor=&status=active&purpose=avatar&account={{accountRef}}&owner_ref=user:123:avatar",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "1–200 (clamped)"
+                },
+                {
+                  "key": "cursor",
+                  "value": "",
+                  "description": "next_cursor from the previous page",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "active",
+                  "description": "pending | active | deleted | purged",
+                  "disabled": true
+                },
+                {
+                  "key": "purpose",
+                  "value": "avatar",
+                  "description": null,
+                  "disabled": true
+                },
+                {
+                  "key": "account",
+                  "value": "{{accountRef}}",
+                  "description": null,
+                  "disabled": true
+                },
+                {
+                  "key": "owner_ref",
+                  "value": "user:123:avatar",
+                  "description": "files that have this exact reference",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Newest first, cursor paginated → `{ data, next_cursor }`. Scope `files:read`."
+          }
+        },
+        {
+          "name": "Confirm file",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/confirm",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "confirm"
+              ]
+            },
+            "description": "`pending → active` (idempotent for active). `owner_ref` is optional and added as a reference. 409 `invalid_state` if deleted/purged. Scope `files:write`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner_ref\": \"post:77:images\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Confirm files (batch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/confirm",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "confirm"
+              ]
+            },
+            "description": "≤ 100 ids, all-or-nothing: an unknown id → 404, a deleted one → 409, and nothing changes. Returns `{ data: [files] }`. Scope `files:write`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ids\": [\n    \"{{fileId}}\"\n  ],\n  \"owner_ref\": \"post:77:images\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files – shared references",
+      "item": [
+        {
+          "name": "Add reference",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/refs",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "refs"
+              ]
+            },
+            "description": "Attach another owner to an existing file (idempotent). 409 if the file is deleted. Scope `files:write`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner_ref\": \"user:789:avatar\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Remove reference",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/refs",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "refs"
+              ]
+            },
+            "description": "Remove one owner. When the **last** reference is removed the file is deleted (trash + CDN purge). Returns `{ id, removed, remaining_refs, status }`. `owner_ref` may also be sent as a query parameter. Scope `files:delete`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner_ref\": \"user:789:avatar\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Delete by owner prefix",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/delete-by-owner",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "delete-by-owner"
+              ]
+            },
+            "description": "Removes every reference starting with the prefix (≥ 3 chars, must end with `:`); only files left with no references are deleted. Returns `{ refs_removed, files_deleted, deleted }`. Scope `files:delete`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"owner_ref_prefix\": \"{{ownerRefPrefix}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Files – delete & restore",
+      "item": [
+        {
+          "name": "Delete file",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}?force=true",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}"
+              ],
+              "query": [
+                {
+                  "key": "force",
+                  "value": "true",
+                  "description": "required when the file still has references"
+                }
+              ]
+            },
+            "description": "Force delete. **409 `has_references`** while owners still reference the file unless `force=true`. 204 on success; idempotent for already-deleted files; unknown id → 404. Scope `files:delete`."
+          }
+        },
+        {
+          "name": "Restore file",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/files/{{fileId}}/restore",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "files",
+                "{{fileId}}",
+                "restore"
+              ]
+            },
+            "description": "`deleted → active` within the 7-day trash window; re-checks the account quota (507). Scope `files:delete`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Accounts",
+      "item": [
+        {
+          "name": "Create / update account",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/accounts/{{accountRef}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountRef}}"
+              ]
+            },
+            "description": "`quota_bytes` is required; `null` = unlimited. Lowering below usage is allowed (new uploads then get 507). Scope `accounts:write`.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quota_bytes\": 21474836480\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Get account",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/accounts/{{accountRef}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountRef}}"
+              ]
+            },
+            "description": "`{ ref, quota_bytes, used_bytes, file_count, usage_percent, deleted }`. Scope `accounts:read`."
+          }
+        },
+        {
+          "name": "Delete account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/accounts/{{accountRef}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "accounts",
+                "{{accountRef}}"
+              ]
+            },
+            "description": "Soft-deletes **all** live files of the account (regardless of references) and marks it deleted. Returns `{ deleted_files }`. Scope `accounts:write`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Delivery (public, no auth)",
+      "item": [
+        {
+          "name": "Original",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/f/{{fileId}}.{{fileExt}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "f",
+                "{{fileId}}.{{fileExt}}"
+              ]
+            },
+            "description": "Public original. Cache-Control: public, max-age=604800, immutable · CDN-Cache-Control: max-age=31536000 · ETag/304 · Range.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Original (HEAD)",
+          "request": {
+            "method": "HEAD",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/f/{{fileId}}.{{fileExt}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "f",
+                "{{fileId}}.{{fileExt}}"
+              ]
+            },
+            "description": "Headers only.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Original (Range)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Range",
+                "value": "bytes=0-1023"
+              }
+            ],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/f/{{fileId}}.{{fileExt}}",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "f",
+                "{{fileId}}.{{fileExt}}"
+              ]
+            },
+            "description": "Expect 206 Partial Content (video seeking).",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Image variant",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/i/{{fileId}}/512.webp",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "i",
+                "{{fileId}}",
+                "512.webp"
+              ]
+            },
+            "description": "w ∈ 64,128,256,512,768,1024,1536,2048 · fmt ∈ jpg, png, webp, avif. Never upscaled. First request renders and caches it. Not for GIF/video/docs (404).",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Legacy (deprecated)",
+      "item": [
+        {
+          "name": "Upload image (legacy)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{mediaBaseUrl}}/api/v1/uploadImg",
+              "host": [
+                "{{mediaBaseUrl}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "uploadImg"
+              ]
+            },
+            "description": "Old endpoint kept for existing clients; responds with a `Deprecation: true` header. Multipart field `image`. Use **Upload file** instead.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "image",
+                  "type": "file",
+                  "src": []
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
