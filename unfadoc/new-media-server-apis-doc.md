@@ -1,4 +1,4 @@
-# Media Server APIs (v1)
+#New Media Server APIs (v1)
 
 This document covers the endpoints that are actually registered in the server today (`src/app/routes/index.ts`,
 `src/app/modules/*/**.route.ts`). For the deeper design notes see `docs/api/`.
@@ -13,25 +13,25 @@ This document covers the endpoints that are actually registered in the server to
 
 ## Endpoint summary
 
-| Method | Path | Scope | Purpose |
-|---|---|---|---|
-| POST | `/api/v1/files` | `files:write` | Upload one file |
-| GET | `/api/v1/files` | `files:read` | List files (cursor paginated) |
-| GET | `/api/v1/files/:id` | `files:read` | Get one file |
-| POST | `/api/v1/files/:id/confirm` | `files:write` | Confirm a pending file |
-| POST | `/api/v1/files/confirm` | `files:write` | Confirm up to 100 files at once |
-| POST | `/api/v1/files/:id/refs` | `files:write` | Add an owner reference |
-| DELETE | `/api/v1/files/:id/refs` | `files:delete` | Remove an owner reference (deletes the file when it was the last one) |
-| POST | `/api/v1/files/delete-by-owner` | `files:delete` | Remove all references under an owner prefix |
-| DELETE | `/api/v1/files/:id` | `files:delete` | Delete a file (soft delete, goes to trash) |
-| POST | `/api/v1/files/:id/restore` | `files:delete` | Restore a file from trash |
-| PUT | `/api/v1/accounts/:ref` | `accounts:write` | Create an account or update its quota |
-| GET | `/api/v1/accounts/:ref` | `accounts:read` | Get an account's quota and usage |
-| DELETE | `/api/v1/accounts/:ref` | `accounts:write` | Delete an account and all its files |
-| GET | `/f/:id.:ext` | none | Public file delivery |
-| GET | `/i/:id/:w.:fmt` | none | Public resized image variant |
-| GET | `/healthz` | none | Liveness |
-| GET | `/readyz` | none | Readiness (database and storage) |
+| Method | Path                            | Scope            | Purpose                                                               |
+| ------ | ------------------------------- | ---------------- | --------------------------------------------------------------------- |
+| POST   | `/api/v1/files`                 | `files:write`    | Upload one file                                                       |
+| GET    | `/api/v1/files`                 | `files:read`     | List files (cursor paginated)                                         |
+| GET    | `/api/v1/files/:id`             | `files:read`     | Get one file                                                          |
+| POST   | `/api/v1/files/:id/confirm`     | `files:write`    | Confirm a pending file                                                |
+| POST   | `/api/v1/files/confirm`         | `files:write`    | Confirm up to 100 files at once                                       |
+| POST   | `/api/v1/files/:id/refs`        | `files:write`    | Add an owner reference                                                |
+| DELETE | `/api/v1/files/:id/refs`        | `files:delete`   | Remove an owner reference (deletes the file when it was the last one) |
+| POST   | `/api/v1/files/delete-by-owner` | `files:delete`   | Remove all references under an owner prefix                           |
+| DELETE | `/api/v1/files/:id`             | `files:delete`   | Delete a file (soft delete, goes to trash)                            |
+| POST   | `/api/v1/files/:id/restore`     | `files:delete`   | Restore a file from trash                                             |
+| PUT    | `/api/v1/accounts/:ref`         | `accounts:write` | Create an account or update its quota                                 |
+| GET    | `/api/v1/accounts/:ref`         | `accounts:read`  | Get an account's quota and usage                                      |
+| DELETE | `/api/v1/accounts/:ref`         | `accounts:write` | Delete an account and all its files                                   |
+| GET    | `/f/:id.:ext`                   | none             | Public file delivery                                                  |
+| GET    | `/i/:id/:w.:fmt`                | none             | Public resized image variant                                          |
+| GET    | `/healthz`                      | none             | Liveness                                                              |
+| GET    | `/readyz`                       | none             | Readiness (database and storage)                                      |
 
 Legacy endpoints (`/api/v1/uploadImg`, `/api/v1/uploadVideo`) are listed at the end. Don't use them in new code.
 
@@ -47,11 +47,11 @@ Authorization: Bearer msk_xxxxxxxxxxxxxxxx
 
 API keys carry scopes: `files:read`, `files:write`, `files:delete`, `accounts:read`, `accounts:write`.
 
-| Situation | Response |
-|---|---|
-| Missing, invalid, revoked or expired key | `401 unauthorized` |
-| Key lacks the endpoint's scope | `403 forbidden_scope` |
-| Over the per-key rate (`RATE_LIMIT_RPS`, burst of 2×) | `429 rate_limited` + `Retry-After` |
+| Situation                                                     | Response                           |
+| ------------------------------------------------------------- | ---------------------------------- |
+| Missing, invalid, revoked or expired key                      | `401 unauthorized`                 |
+| Key lacks the endpoint's scope                                | `403 forbidden_scope`              |
+| Over the per-key rate (`RATE_LIMIT_RPS`, burst of 2×)         | `429 rate_limited` + `Retry-After` |
 | Too many failed key attempts from one IP (burst 30, then 1/s) | `429 rate_limited` + `Retry-After` |
 
 Never send the API key from a browser. Only your backend should call these endpoints.
@@ -88,16 +88,16 @@ Most `/files` endpoints return this shape:
 }
 ```
 
-| Field | Notes |
-|---|---|
-| `status` | `pending` → `active` → `deleted` → `purged` (see [Lifecycle](#file-lifecycle)) |
-| `kind` | `image`, `video` or `document` |
+| Field                    | Notes                                                                          |
+| ------------------------ | ------------------------------------------------------------------------------ |
+| `status`                 | `pending` → `active` → `deleted` → `purged` (see [Lifecycle](#file-lifecycle)) |
+| `kind`                   | `image`, `video` or `document`                                                 |
 | `size` / `original_size` | Stored bytes vs. uploaded bytes. `compressed` is `true` when stored is smaller |
-| `width` / `height` | Images only, otherwise `null` |
-| `url` | Present only while the file is `pending` or `active` |
-| `variants_url_template` | Present only for live images, except GIF |
-| `meta` | Present only for videos (e.g. `faststart`) |
-| `refs` / `ref_count` | Owner references attached to the file |
+| `width` / `height`       | Images only, otherwise `null`                                                  |
+| `url`                    | Present only while the file is `pending` or `active`                           |
+| `variants_url_template`  | Present only for live images, except GIF                                       |
+| `meta`                   | Present only for videos (e.g. `faststart`)                                     |
+| `refs` / `ref_count`     | Owner references attached to the file                                          |
 
 Store the **`id`** in your database. Build URLs from it, or store `url`.
 
@@ -114,21 +114,21 @@ form field, or a second file, is rejected. All options go in the **query string*
 
 **Query parameters**
 
-| Param | Required | Default | Description |
-|---|---|---|---|
-| `confirm` | no | `false` | `true` makes the file `active` immediately. With `false` it stays `pending` until you confirm it |
-| `purpose` | no | – | Free-form label, e.g. `avatar`, `invoice` (`[A-Za-z0-9_.:@-]`, ≤ 128) |
-| `owner_ref` | no | – | Owner reference such as `user:123:avatar` (printable ASCII, no spaces, ≤ 255). Enables ref-based delete |
-| `account` | only if `REQUIRE_ACCOUNT=true` | – | Your customer id, e.g. `agency_42`. Quotas are tracked per account and the account is auto-created |
-| `visibility` | no | `public` | Only `public` is supported for now |
+| Param        | Required                       | Default  | Description                                                                                             |
+| ------------ | ------------------------------ | -------- | ------------------------------------------------------------------------------------------------------- |
+| `confirm`    | no                             | `false`  | `true` makes the file `active` immediately. With `false` it stays `pending` until you confirm it        |
+| `purpose`    | no                             | –        | Free-form label, e.g. `avatar`, `invoice` (`[A-Za-z0-9_.:@-]`, ≤ 128)                                   |
+| `owner_ref`  | no                             | –        | Owner reference such as `user:123:avatar` (printable ASCII, no spaces, ≤ 255). Enables ref-based delete |
+| `account`    | only if `REQUIRE_ACCOUNT=true` | –        | Your customer id, e.g. `agency_42`. Quotas are tracked per account and the account is auto-created      |
+| `visibility` | no                             | `public` | Only `public` is supported for now                                                                      |
 
 Unknown query parameters are rejected (`400`).
 
 **Headers**
 
-| Header | Description |
-|---|---|
-| `Authorization` | `Bearer <key>` |
+| Header            | Description                                                                                                                                                                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Authorization`   | `Bearer <key>`                                                                                                                                                                                                                                  |
 | `Idempotency-Key` | Optional, 1–255 chars, recommended. A retry with the same key, the same query params and the same bytes returns the original response with `Idempotent-Replay: true`. The same key with a different upload returns `422 idempotency_key_reused` |
 
 Don't set `Content-Type` yourself. Let your HTTP client generate it so the multipart boundary is included.
@@ -152,14 +152,14 @@ In Postman: Body → form-data → one row, key `file`, type **File**, with noth
 
 **What the server does with the file**
 
-| Step | Detail |
-|---|---|
-| Type detection | By magic bytes only. Filename, extension and `Content-Type` are ignored |
-| Allowed types | JPEG, PNG, WebP, GIF · MP4, WebM · PDF · DOCX. Anything else returns `415`. Kinds can be limited with `ALLOWED_KINDS` |
-| Size limit | `MAX_FILE_BYTES` (default 10 MB), enforced while streaming → `413` |
-| Images | Pixel limit (`MAX_IMAGE_PIXELS`), metadata stripped, orientation applied, re-compressed at the same resolution. Kept as-is if the saving would be below `IMAGE_MIN_SAVING_PERCENT` |
-| Video / PDF / DOCX | Structure validated and stored as uploaded |
-| Disk / quota | Rejected with `507` if the account quota is exceeded or free disk falls below `MIN_FREE_DISK_PERCENT` |
+| Step               | Detail                                                                                                                                                                             |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Type detection     | By magic bytes only. Filename, extension and `Content-Type` are ignored                                                                                                            |
+| Allowed types      | JPEG, PNG, WebP, GIF · MP4, WebM · PDF · DOCX. Anything else returns `415`. Kinds can be limited with `ALLOWED_KINDS`                                                              |
+| Size limit         | `MAX_FILE_BYTES` (default 10 MB), enforced while streaming → `413`                                                                                                                 |
+| Images             | Pixel limit (`MAX_IMAGE_PIXELS`), metadata stripped, orientation applied, re-compressed at the same resolution. Kept as-is if the saving would be below `IMAGE_MIN_SAVING_PERCENT` |
+| Video / PDF / DOCX | Structure validated and stored as uploaded                                                                                                                                         |
+| Disk / quota       | Rejected with `507` if the account quota is exceeded or free disk falls below `MIN_FREE_DISK_PERCENT`                                                                              |
 
 ---
 
@@ -167,21 +167,21 @@ In Postman: Body → form-data → one row, key `file`, type **File**, with noth
 
 Scope `files:read`. Returns newest first.
 
-| Query | Description |
-|---|---|
-| `limit` | 1–200, default 50 |
-| `cursor` | The `next_cursor` from the previous page |
-| `status` | `pending`, `active`, `deleted` or `purged` |
-| `purpose` | Filter by purpose |
-| `account` | Filter by account ref |
-| `owner_ref` | Files that have this exact reference |
+| Query       | Description                                |
+| ----------- | ------------------------------------------ |
+| `limit`     | 1–200, default 50                          |
+| `cursor`    | The `next_cursor` from the previous page   |
+| `status`    | `pending`, `active`, `deleted` or `purged` |
+| `purpose`   | Filter by purpose                          |
+| `account`   | Filter by account ref                      |
+| `owner_ref` | Files that have this exact reference       |
 
 ```bash
 curl "{{mediaBaseUrl}}/api/v1/files?account=agency_42&status=active&limit=20" -H "Authorization: Bearer $KEY"
 ```
 
 ```json
-{ "data": [ { "id": "…", "status": "active" } ], "next_cursor": "0192f3c4-…" }
+{ "data": [{ "id": "…", "status": "active" }], "next_cursor": "0192f3c4-…" }
 ```
 
 `next_cursor` is `null` on the last page.
@@ -255,7 +255,12 @@ curl -X DELETE "{{mediaBaseUrl}}/api/v1/files/0192f3c4-…/refs?owner_ref=user:1
 ```
 
 ```json
-{ "id": "0192f3c4-…", "removed": true, "remaining_refs": 0, "status": "deleted" }
+{
+  "id": "0192f3c4-…",
+  "removed": true,
+  "remaining_refs": 0,
+  "status": "deleted"
+}
 ```
 
 ---
@@ -283,8 +288,8 @@ Scope `files:delete`. Soft-deletes the file. The bytes move to trash, the file s
 is queued, and its size leaves the account's quota. Deleting an already deleted file returns `204` again, so
 retrying is safe.
 
-| Query | Description |
-|---|---|
+| Query   | Description                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------ |
 | `force` | `true` deletes even when references remain. Without it, a referenced file returns `409 has_references` |
 
 Response: `204 No Content`.
@@ -420,21 +425,21 @@ upload (confirm=true)  ───────────────────
 
 Branch on `code`, show `detail` to developers only, and log `request_id`.
 
-| HTTP | `code` | When | Retry? |
-|---|---|---|---|
-| 400 | `invalid_request` | Bad or unknown params, not multipart, wrong or extra multipart parts, empty file, missing `account` when required | No |
-| 401 | `unauthorized` | Missing or invalid API key | No |
-| 403 | `forbidden_scope` | Key lacks the scope | No |
-| 404 | `not_found` | Unknown file, account or route | No |
-| 409 | `invalid_state` | Confirming a deleted file, restoring outside the trash window, and so on | No |
-| 409 | `has_references` | `DELETE /files/:id` on a file that still has refs (use `force=true` or remove the refs) | No |
-| 413 | `file_too_large` | Over `MAX_FILE_BYTES` | No |
-| 415 | `unsupported_type` | Type not allowed, or that kind is disabled | No |
-| 422 | `invalid_content` | Corrupt file, decompression bomb, invalid MP4/PDF/DOCX | No |
-| 422 | `idempotency_key_reused` | Same `Idempotency-Key` used for a different upload | No (use a new key) |
-| 429 | `rate_limited` | Too many requests. See `Retry-After` | Yes, after the wait |
-| 507 | `quota_exceeded` | Account quota or server disk full | No |
-| 500 / 503 | `internal` / `unavailable` | Server fault | Yes, with backoff and the same `Idempotency-Key` |
+| HTTP      | `code`                     | When                                                                                                              | Retry?                                           |
+| --------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| 400       | `invalid_request`          | Bad or unknown params, not multipart, wrong or extra multipart parts, empty file, missing `account` when required | No                                               |
+| 401       | `unauthorized`             | Missing or invalid API key                                                                                        | No                                               |
+| 403       | `forbidden_scope`          | Key lacks the scope                                                                                               | No                                               |
+| 404       | `not_found`                | Unknown file, account or route                                                                                    | No                                               |
+| 409       | `invalid_state`            | Confirming a deleted file, restoring outside the trash window, and so on                                          | No                                               |
+| 409       | `has_references`           | `DELETE /files/:id` on a file that still has refs (use `force=true` or remove the refs)                           | No                                               |
+| 413       | `file_too_large`           | Over `MAX_FILE_BYTES`                                                                                             | No                                               |
+| 415       | `unsupported_type`         | Type not allowed, or that kind is disabled                                                                        | No                                               |
+| 422       | `invalid_content`          | Corrupt file, decompression bomb, invalid MP4/PDF/DOCX                                                            | No                                               |
+| 422       | `idempotency_key_reused`   | Same `Idempotency-Key` used for a different upload                                                                | No (use a new key)                               |
+| 429       | `rate_limited`             | Too many requests. See `Retry-After`                                                                              | Yes, after the wait                              |
+| 507       | `quota_exceeded`           | Account quota or server disk full                                                                                 | No                                               |
+| 500 / 503 | `internal` / `unavailable` | Server fault                                                                                                      | Yes, with backoff and the same `Idempotency-Key` |
 
 Delivery URLs (`/f`, `/i`) return plain-text `404 Not Found` instead of JSON.
 
@@ -445,13 +450,13 @@ Delivery URLs (`/f`, `/i`) return plain-text `404 Not Found` instead of JSON.
 These remain for old clients only. They need no API key, respond with `Deprecation: true` and
 `Link: </api/v1/files>; rel="successor-version"`, and use the old `{ success, message, data }` response shape.
 
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/api/v1/uploadImg` | multipart field `image` (jpeg/png, ≤ 4 MB). Query: `w`, `h`, `q`, `format`, `fit`, `updateFileName`. Returns `{ url }` |
-| GET | `/api/v1/uploadImg` | Lists image URLs |
-| DELETE | `/api/v1/uploadImg` | Body `{ "urls": string[] }` |
-| POST | `/api/v1/uploadVideo` | multipart field `video` (≤ 40 MB). Returns `{ url }` |
-| DELETE | `/api/v1/uploadVideo/delete-videos` | Body `{ "videoUrls": string[] }` |
+| Method | Path                                | Notes                                                                                                                  |
+| ------ | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| POST   | `/api/v1/uploadImg`                 | multipart field `image` (jpeg/png, ≤ 4 MB). Query: `w`, `h`, `q`, `format`, `fit`, `updateFileName`. Returns `{ url }` |
+| GET    | `/api/v1/uploadImg`                 | Lists image URLs                                                                                                       |
+| DELETE | `/api/v1/uploadImg`                 | Body `{ "urls": string[] }`                                                                                            |
+| POST   | `/api/v1/uploadVideo`               | multipart field `video` (≤ 40 MB). Returns `{ url }`                                                                   |
+| DELETE | `/api/v1/uploadVideo/delete-videos` | Body `{ "videoUrls": string[] }`                                                                                       |
 
 Legacy files are served from `/uploads/img/*` and `/uploads/videos/*`.
 
