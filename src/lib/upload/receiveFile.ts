@@ -42,7 +42,9 @@ export const receiveFile = (
     try {
       bb = busboy({
         headers: req.headers,
-        limits: { files: 1, fileSize: maxBytes, fields: 0, parts: 1 },
+        // No `parts` limit: busboy emits partsLimit when the count *reaches* it, which would
+        // reject a valid single-part upload. files:1 + fields:0 already allow only one part.
+        limits: { files: 1, fileSize: maxBytes, fields: 0 },
       });
     } catch {
       return reject(new ProblemError('invalid_request', 'malformed multipart'));
@@ -96,7 +98,7 @@ export const receiveFile = (
     bb.on('field', () =>
       fail(new ProblemError('invalid_request', 'unexpected form field'))
     );
-    for (const limit of ['partsLimit', 'filesLimit', 'fieldsLimit']) {
+    for (const limit of ['filesLimit', 'fieldsLimit']) {
       bb.on(limit, () =>
         fail(
           new ProblemError(
