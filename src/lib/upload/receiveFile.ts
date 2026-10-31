@@ -10,7 +10,7 @@ import { remove } from '../storage/localStorage';
 export type TReceivedFile = {
   path: string;
   size: number;
-  sha256: Buffer;
+  sha256: Buffer<ArrayBuffer>;
   originalName: string | null;
 };
 

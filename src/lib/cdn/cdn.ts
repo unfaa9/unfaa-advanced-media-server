@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../generated/prisma/client';
 import config from '../../config';
 
 // Every public URL a file can have: the original plus all allowlisted variants.

@@ -1,4 +1,4 @@
-import { Account, File, FileRef } from '@prisma/client';
+import { Account, File, FileRef } from '../../../generated/prisma/client';
 import config from '../../../config';
 
 export type TFileWithRelations = File & {
@@ -27,7 +27,7 @@ export const serializeFile = (f: TFileWithRelations) => {
     size: Number(f.sizeBytes),
     original_size: Number(f.originalSizeBytes),
     compressed: f.sizeBytes < f.originalSizeBytes,
-    sha256: f.sha256.toString('hex'),
+    sha256: Buffer.from(f.sha256).toString('hex'),
     width: f.width,
     height: f.height,
     ...(live ? { url: `${base}/f/${f.id}.${f.ext}` } : {}),

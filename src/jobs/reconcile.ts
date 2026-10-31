@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../generated/prisma/client';
 import fsp from 'fs/promises';
 import path from 'path';
 import {
@@ -88,7 +88,7 @@ export const reconcile = async ({
         SELECT used_bytes FROM accounts WHERE id = ${a.id}::uuid
         ${dryRun ? Prisma.empty : Prisma.sql`FOR UPDATE`}`;
       const [actual] = await tx.$queryRaw<{ bytes: bigint | null; n: bigint }[]>`
-        SELECT sum(size_bytes) AS bytes, count(*) AS n FROM files
+        SELECT sum(size_bytes)::bigint AS bytes, count(*) AS n FROM files
          WHERE account_id = ${a.id}::uuid AND status IN ('pending', 'active')`;
       const actualBytes = actual.bytes ?? BigInt(0);
       if (locked.used_bytes === actualBytes) return;

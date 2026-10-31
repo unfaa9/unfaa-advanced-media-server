@@ -23,7 +23,7 @@ pnpm lint-prettier  # lint + prettier
 
 Package manager: pnpm 11 (pinned in `package.json` `packageManager`; `pnpm-workspace.yaml` `allowBuilds` lets prisma/sharp/esbuild run install scripts). Install with `pnpm install --frozen-lockfile`. Tests: `pnpm test` (vitest, `test/unit`).
 
-`postinstall` runs `prisma generate` (`prisma/schema.prisma`); migrations: `pnpm db:migrate`.
+`postinstall` runs `prisma generate` (`prisma/schema.prisma`), which writes the client to the git-ignored `src/generated/prisma`; import from there, not `@prisma/client`. Run `pnpm exec prisma generate` yourself after a schema change, because `migrate dev` no longer does. Migrations: `pnpm db:migrate`. Prisma 7: the CLI gets `DATABASE_URL` from `prisma.config.ts`, the runtime connects through the `pg` driver adapter in `src/shared/prisma.ts`, and a `?schema=` URL parameter is ignored at runtime (only `public` works).
 
 ## Configuration
 

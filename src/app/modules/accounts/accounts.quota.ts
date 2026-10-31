@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import { v7 as uuidv7 } from 'uuid';
 import config from '../../../config';
 import ProblemError from '../../../errors/ProblemError';

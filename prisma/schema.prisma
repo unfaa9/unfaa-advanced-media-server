@@ -1,10 +1,14 @@
 generator client {
-  provider = "prisma-client-js"
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "cjs"
+  // Bare imports: "pnpm dev" runs these .ts files directly, where "./x.js" would not resolve.
+  importFileExtension = ""
 }
 
+// The connection URL lives in prisma.config.ts (CLI) and src/shared/prisma.ts (runtime).
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 enum FileStatus {

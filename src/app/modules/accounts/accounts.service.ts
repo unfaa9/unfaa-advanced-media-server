@@ -1,4 +1,4 @@
-import { Account } from '@prisma/client';
+import { Account } from '../../../generated/prisma/client';
 import ProblemError from '../../../errors/ProblemError';
 import prisma from '../../../shared/prisma';
 import {
