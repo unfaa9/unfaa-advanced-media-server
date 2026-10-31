@@ -3,7 +3,7 @@
 > **Applies to:** API v1 (Node/TypeScript build) · **Base URL:** `https://media.unfaa.com` (local: `http://localhost:5000`)
 > **Postman:** [`media-server.postman_collection.json`](media-server.postman_collection.json) (import it, then set `mediaBaseUrl` and `apiKey`)
 
-This server is a Node port of the Go media server described in [`../docs/`](../docs/api/README.md). It stores, compresses, serves and deletes **images, short videos, PDFs and DOCX files** (≤ 10 MB each) for our backends. Backends upload and manage files with an API key. Browsers only read files through Cloudflare-cached public URLs.
+This server is a Node port of the Go media server described in [`../docs/`](../docs/api/README.md). It stores, compresses, serves and deletes **images, short videos, PDFs and DOCX files** (≤ 15 MB each) for our backends. Backends upload and manage files with an API key. Browsers only read files through Cloudflare-cached public URLs.
 
 ---
 
@@ -56,7 +56,7 @@ A missing scope returns `403 forbidden_scope`.
 
 | Limit | Value | Error |
 |---|---|---|
-| File size | `MAX_FILE_BYTES` (default and maximum 10 MB), enforced while streaming | `413 file_too_large` |
+| File size | `MAX_FILE_BYTES` (default and maximum 15 MB), enforced while streaming | `413 file_too_large` |
 | Parts per upload | exactly one part, named `file` | `400 invalid_request` |
 | Image size | 50 MP (`MAX_IMAGE_PIXELS`). Animated: 2× across all frames | `422 invalid_content` |
 | Allowed kinds | `ALLOWED_KINDS` (default `image,video,document`) | `415 unsupported_type` |
@@ -278,7 +278,7 @@ Send removals from a transactional outbox (see [`../docs/api/recipes/outbox-patt
   "title": "Request Entity Too Large",
   "status": 413,
   "code": "file_too_large",
-  "detail": "file exceeds the 10485760-byte limit",
+  "detail": "file exceeds the 15728640-byte limit",
   "request_id": "9c1f2e3a4b5d6f708192a3b4"
 }
 ```
@@ -369,7 +369,7 @@ On `SIGTERM`/`SIGINT`, the server stops accepting connections, drains in-flight 
 4. **Reverse proxy** (nginx/Caddy) → `localhost:$PORT`. Allow request bodies ≥ 11 MB (nginx: `client_max_body_size 11m`). Health check path: `/readyz`.
 5. **Cloudflare:**
    - DNS `media` record **proxied**, SSL **Full (strict)**.
-   - Cache rules: `/f/*`, `/i/*` → eligible for cache (respect origin headers). `/api/*`, `/healthz`, `/readyz`, legacy `/uploads/*` → bypass.
+   - Cache rules: `/f/*`, `/i/*` → eligible for cache (respect origin headers). `/api/*`, `/healthz`, `/readyz` → bypass.
    - WAF rate-limit rule on `/i/*` (variant rendering is the only CPU-heavy public route).
    - API token with *Zone → Cache Purge* only → `CF_API_TOKEN`. Then set `CDN_PROVIDER=cloudflare` and `TRUSTED_PROXIES=loopback,cloudflare`.
 6. **First key:** `npm run admin -- key create --name backend-prod --expires 365d`.
@@ -379,16 +379,10 @@ All environment variables are documented in [`../.env.example`](../.env.example)
 
 ---
 
-## 12. Legacy endpoints (deprecated)
+## 12. Legacy endpoints (removed)
 
-`POST /api/v1/uploadImg` (field `image`), `GET`/`DELETE /api/v1/uploadImg` and `POST /api/v1/uploadVideo` (field `video`), `DELETE /api/v1/uploadVideo/delete-videos`, and the static `/uploads/img/*` and `/uploads/videos/*` keep working exactly as before. They need no API key and keep the old response format. Their responses now carry:
-
-```
-Deprecation: true
-Link: </api/v1/files>; rel="successor-version"
-```
-
-New integrations should use `/api/v1/files`. These routes still have their old known issues (listed in `CLAUDE.md`).
+The old `/api/v1/uploadImg`, `/api/v1/uploadVideo` routes and the static `/uploads/img/*`, `/uploads/videos/*` mounts
+were removed on 2026-10-31. Every client uses `/api/v1/files`.
 
 ---
 

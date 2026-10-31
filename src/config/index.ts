@@ -6,7 +6,8 @@ import '../shared/zodV3Messages';
 
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
-const MAX_FILE_BYTES_CAP = 10 * 1024 * 1024;
+// 15 MB: the backend's PDF previews (PREVIEW_MAX_BYTES) are up to 15 MB.
+const MAX_FILE_BYTES_CAP = 15 * 1024 * 1024;
 const KINDS = ['image', 'video', 'document'] as const;
 
 const bool = z

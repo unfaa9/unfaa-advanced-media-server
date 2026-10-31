@@ -12,7 +12,7 @@
   begins immediately. `false` files are accepted but must download further before playing — fix at the source
   with `ffmpeg -i in.mp4 -c copy -movflags +faststart out.mp4` (lossless, seconds).
 - Served byte-for-byte with `Range` support (`206 Partial Content`, `Accept-Ranges: bytes`), so seeking works.
-- **No transcoding, no thumbnails, no HLS.** Keep clips short (the limit is 10 MB). For heavy video use a
+- **No transcoding, no thumbnails, no HLS.** Keep clips short (the limit is 15 MB). For heavy video use a
   dedicated video service.
 
 ```html

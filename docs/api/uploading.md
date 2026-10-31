@@ -66,7 +66,7 @@ curl -sS -X POST "https://media.unfaa.com/api/v1/files?visibility=public&purpose
 |---|---|
 | Type check | By **magic bytes only**. Your filename, extension and `Content-Type` are ignored. |
 | Allowed | JPEG, PNG, WebP, GIF · MP4, WebM · PDF · DOCX. Everything else → `415`. SVG/HTML/XML are rejected. |
-| Size | ≤ **10 MB** (hard limit, enforced while streaming) → `413 file_too_large` |
+| Size | ≤ **15 MB** (hard limit, enforced while streaming) → `413 file_too_large` |
 | Images | Validated (pixel limit 50 MP, corrupt/bomb → `422`), **EXIF/GPS/comments stripped**, EXIF **orientation applied**, then re-compressed at the **same resolution**. If compression would not save ≥ 5 % the original pixels are kept. |
 | DOCX | Must be a real Word package; macro-enabled files and zip bombs are rejected. |
 | PDF/MP4/WebM | Structure checked; stored as-is. |

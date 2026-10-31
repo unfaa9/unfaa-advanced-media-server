@@ -1,12 +1,9 @@
-import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import express, { Application, NextFunction, Request, Response } from 'express';
 import httpStatus from 'http-status';
 import pinoHttp from 'pino-http';
 import globalErrorHandler from './app/middlewares/globalErrorHandler';
 import requestId from './app/middlewares/requestId';
-import { uploadDir } from './app/middlewares/uploadImage';
-import { videoUploadDir } from './app/middlewares/uploadVideo';
 import { deliveryRoutes } from './app/modules/delivery/delivery.route';
 import { healthRoutes } from './app/modules/health/health.route';
 import routes from './app/routes';
@@ -48,13 +45,10 @@ app.use(healthRoutes);
 app.use(deliveryRoutes);
 
 app.use(cors());
-app.use(cookieParser());
 
 //parser
 app.use(express.json({ type: ['application/json', 'application/*+json'] }));
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads/img', express.static(uploadDir));
-app.use('/uploads/videos', express.static(videoUploadDir));
 app.use('/api/v1', routes);
 
 //global error handler
