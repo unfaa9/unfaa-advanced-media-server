@@ -1,4 +1,4 @@
-import FileType from 'file-type';
+import { fileTypeFromFile } from 'file-type';
 import { TExt } from '../storage/layout';
 
 export type TKind = 'image' | 'video' | 'document';
@@ -23,7 +23,7 @@ const ALLOWED: Record<string, TMediaType> = {
 };
 
 export const sniff = async (file: string): Promise<TMediaType | null> => {
-  const detected = await FileType.fromFile(file);
+  const detected = await fileTypeFromFile(file);
   return (detected && ALLOWED[detected.mime]) || null;
 };
 
