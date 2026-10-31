@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma } from '../../../generated/prisma/client';
 import crypto from 'crypto';
 import fsp from 'fs/promises';
 import { v7 as uuidv7 } from 'uuid';
@@ -140,7 +140,7 @@ const attachDuplicate = async (id: string, opts: TUploadOptions) => {
   return { ...serializeFile(await loadFile(id)), deduplicated: true };
 };
 
-const findDuplicate = async (sha: Buffer, account?: string) => {
+const findDuplicate = async (sha: Buffer<ArrayBuffer>, account?: string) => {
   const f = await prisma.file.findFirst({
     where: {
       uploadSha256: sha,

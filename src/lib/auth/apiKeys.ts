@@ -35,7 +35,7 @@ const randomBase62 = (length: number): string => {
   return out;
 };
 
-export const hashKey = (key: string): Buffer =>
+export const hashKey = (key: string): Buffer<ArrayBuffer> =>
   crypto.createHash('sha256').update(key).digest();
 
 export const createKey = async (input: {

@@ -11,7 +11,8 @@ const SHUTDOWN_GRACE_MS = 25_000;
 
 async function bootstrap() {
   await ensureDirs();
-  await prisma.$connect();
+  // A real query, because $connect() no longer fails on an unreachable database (driver adapter).
+  await prisma.$queryRaw`SELECT 1`;
 
   const server: Server = app.listen(config.port, () => {
     logger.info(`Server running on port ${config.port}`);
