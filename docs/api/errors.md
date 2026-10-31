@@ -10,7 +10,7 @@ Errors use [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) `application/probl
   "title": "Request Entity Too Large",
   "status": 413,
   "code": "file_too_large",
-  "detail": "file exceeds the 10485760-byte limit",
+  "detail": "file exceeds the 15728640-byte limit",
   "request_id": "9c1f2e3a4b5d6f708192a3b4"
 }
 ```
@@ -24,7 +24,7 @@ Branch on **`code`** (stable), show `detail` to developers only, and log `reques
 | 403 | `forbidden_scope` | key lacks the scope | request the right scope |
 | 404 | `not_found` | unknown id or unknown account | treat as gone |
 | 409 | `invalid_state` | confirm a deleted file, restore a non-deleted/purged file | fix your flow |
-| 413 | `file_too_large` | over `MAX_FILE_BYTES` (≤ 10 MB) | tell the user |
+| 413 | `file_too_large` | over `MAX_FILE_BYTES` (≤ 15 MB) | tell the user |
 | 415 | `unsupported_type` | detected type not allowed / kind not in `ALLOWED_KINDS` | tell the user which formats are accepted |
 | 422 | `invalid_content` | corrupt image, decompression bomb (incl. animated GIFs over the frame-pixel budget), bad MP4/PDF/DOCX | ask for another file |
 | 422 | `idempotency_key_reused` | the `Idempotency-Key` was already used within 24 h for an upload with **different query parameters** | bug in your client: use a new key per distinct upload |

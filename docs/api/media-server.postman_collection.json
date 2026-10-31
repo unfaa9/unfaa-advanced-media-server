@@ -187,7 +187,7 @@
                   "key": "file",
                   "type": "file",
                   "src": [],
-                  "description": "Exactly one part named `file` (≤ 10 MB)"
+                  "description": "Exactly one part named `file` (≤ 15 MB)"
                 }
               ]
             }
@@ -284,7 +284,7 @@
                       "key": "file",
                       "type": "file",
                       "src": [],
-                      "description": "Exactly one part named `file` (≤ 10 MB)"
+                      "description": "Exactly one part named `file` (≤ 15 MB)"
                     }
                   ]
                 }
@@ -359,7 +359,7 @@
                   "key": "file",
                   "type": "file",
                   "src": [],
-                  "description": "Exactly one part named `file` (≤ 10 MB)"
+                  "description": "Exactly one part named `file` (≤ 15 MB)"
                 }
               ]
             }

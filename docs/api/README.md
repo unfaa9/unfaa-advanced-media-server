@@ -3,7 +3,7 @@
 > Applies to: **API v1** · Base URL: `https://media.unfaa.com/api/v1`
 > Inside the Coolify Docker network use `http://media-server:8080/api/v1` (faster, skips Cloudflare).
 
-The media server stores, serves and deletes **images, short videos, PDFs and DOCX files** (≤ 10 MB each)
+The media server stores, serves and deletes **images, short videos, PDFs and DOCX files** (≤ 15 MB each)
 for our backends. Your backend uploads; browsers only ever *read* via CDN-cached URLs.
 
 Keywords **MUST**, **SHOULD**, **MAY** are used as in RFC 2119.

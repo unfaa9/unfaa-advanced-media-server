@@ -147,7 +147,7 @@
                   "key": "file",
                   "type": "file",
                   "src": [],
-                  "description": "Exactly one part named `file`. Pick any image, MP4, WebM, PDF or DOCX ≤ 10 MB."
+                  "description": "Exactly one part named `file`. Pick any image, MP4, WebM, PDF or DOCX ≤ 15 MB."
                 }
               ]
             }
@@ -209,7 +209,7 @@
                   "key": "file",
                   "type": "file",
                   "src": [],
-                  "description": "Exactly one part named `file`. Pick any image, MP4, WebM, PDF or DOCX ≤ 10 MB."
+                  "description": "Exactly one part named `file`. Pick any image, MP4, WebM, PDF or DOCX ≤ 15 MB."
                 }
               ]
             }
@@ -709,43 +709,6 @@
             "description": "w ∈ 64,128,256,512,768,1024,1536,2048 · fmt ∈ jpg, png, webp, avif. Never upscaled. First request renders and caches it. Not for GIF/video/docs (404).",
             "auth": {
               "type": "noauth"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "Legacy (deprecated)",
-      "item": [
-        {
-          "name": "Upload image (legacy)",
-          "request": {
-            "method": "POST",
-            "header": [],
-            "url": {
-              "raw": "{{mediaBaseUrl}}/api/v1/uploadImg",
-              "host": [
-                "{{mediaBaseUrl}}"
-              ],
-              "path": [
-                "api",
-                "v1",
-                "uploadImg"
-              ]
-            },
-            "description": "Old endpoint kept for existing clients; responds with a `Deprecation: true` header. Multipart field `image`. Use **Upload file** instead.",
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "formdata",
-              "formdata": [
-                {
-                  "key": "image",
-                  "type": "file",
-                  "src": []
-                }
-              ]
             }
           }
         }

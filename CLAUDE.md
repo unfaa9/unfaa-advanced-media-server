@@ -32,7 +32,7 @@ Env vars are validated by zod at startup (`src/config/index.ts`); see `.env.exam
 - `STORAGE_PATH` MUST be on the persistent volume (e.g. `/mnt/data/media` with the Coolify volume mounted at `/mnt/data`).
   A relative path resolves inside the container and is lost on every redeploy.
 - `PUBLIC_BASE_URL` builds every returned URL; the backend's `MEDIA_PUBLIC_URL` must equal it.
-- `MAX_FILE_BYTES` must allow the backend's PDF previews (15 MB).
+- `MAX_FILE_BYTES` defaults to (and is capped at) 15 MB, the size of the backend's PDF previews.
 - API keys: `node dist/cli.js admin key create --name backend-prod` (scopes default to all).
 
 ## Architecture

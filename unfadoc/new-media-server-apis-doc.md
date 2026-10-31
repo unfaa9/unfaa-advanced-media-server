@@ -33,7 +33,6 @@ This document covers the endpoints that are actually registered in the server to
 | GET    | `/healthz`                      | none             | Liveness                                                              |
 | GET    | `/readyz`                       | none             | Readiness (database and storage)                                      |
 
-Legacy endpoints (`/api/v1/uploadImg`, `/api/v1/uploadVideo`) are listed at the end. Don't use them in new code.
 
 ---
 
@@ -156,7 +155,7 @@ In Postman: Body → form-data → one row, key `file`, type **File**, with noth
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Type detection     | By magic bytes only. Filename, extension and `Content-Type` are ignored                                                                                                            |
 | Allowed types      | JPEG, PNG, WebP, GIF · MP4, WebM · PDF · DOCX. Anything else returns `415`. Kinds can be limited with `ALLOWED_KINDS`                                                              |
-| Size limit         | `MAX_FILE_BYTES` (default 10 MB), enforced while streaming → `413`                                                                                                                 |
+| Size limit         | `MAX_FILE_BYTES` (default 15 MB), enforced while streaming → `413`                                                                                                                 |
 | Images             | Pixel limit (`MAX_IMAGE_PIXELS`), metadata stripped, orientation applied, re-compressed at the same resolution. Kept as-is if the saving would be below `IMAGE_MIN_SAVING_PERCENT` |
 | Video / PDF / DOCX | Structure validated and stored as uploaded                                                                                                                                         |
 | Disk / quota       | Rejected with `507` if the account quota is exceeded or free disk falls below `MIN_FREE_DISK_PERCENT`                                                                              |
@@ -442,23 +441,6 @@ Branch on `code`, show `detail` to developers only, and log `request_id`.
 | 500 / 503 | `internal` / `unavailable` | Server fault                                                                                                      | Yes, with backoff and the same `Idempotency-Key` |
 
 Delivery URLs (`/f`, `/i`) return plain-text `404 Not Found` instead of JSON.
-
----
-
-## Legacy endpoints (deprecated)
-
-These remain for old clients only. They need no API key, respond with `Deprecation: true` and
-`Link: </api/v1/files>; rel="successor-version"`, and use the old `{ success, message, data }` response shape.
-
-| Method | Path                                | Notes                                                                                                                  |
-| ------ | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| POST   | `/api/v1/uploadImg`                 | multipart field `image` (jpeg/png, ≤ 4 MB). Query: `w`, `h`, `q`, `format`, `fit`, `updateFileName`. Returns `{ url }` |
-| GET    | `/api/v1/uploadImg`                 | Lists image URLs                                                                                                       |
-| DELETE | `/api/v1/uploadImg`                 | Body `{ "urls": string[] }`                                                                                            |
-| POST   | `/api/v1/uploadVideo`               | multipart field `video` (≤ 40 MB). Returns `{ url }`                                                                   |
-| DELETE | `/api/v1/uploadVideo/delete-videos` | Body `{ "videoUrls": string[] }`                                                                                       |
-
-Legacy files are served from `/uploads/img/*` and `/uploads/videos/*`.
 
 ---
 

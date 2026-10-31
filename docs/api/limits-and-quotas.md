@@ -4,7 +4,7 @@
 
 | Limit | Value | Error |
 |---|---|---|
-| File size | **10 MB** per file (`MAX_FILE_BYTES` may set a lower limit, never higher) | `413 file_too_large` |
+| File size | **15 MB** per file (`MAX_FILE_BYTES` may set a lower limit, never higher) | `413 file_too_large` |
 | Files per request | exactly 1 | `400` |
 | Image size | 50 megapixels; corrupt/oversized → | `422 invalid_content` |
 | Allowed kinds | `ALLOWED_KINDS` (default `image,video,document`) | `415 unsupported_type` |
