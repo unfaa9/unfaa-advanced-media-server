@@ -22,7 +22,7 @@ const uploadQuery = z
   .object({
     visibility: z
       .enum(['public'], {
-        errorMap: () => ({ message: 'only public files are supported' }),
+        error: 'only public files are supported',
       })
       .optional(),
     confirm: boolString,
@@ -35,7 +35,12 @@ const uploadQuery = z
 const listQuery = z
   .object({
     cursor: fileId.optional(),
-    limit: z.coerce.number().int().min(1).default(50).transform(n => Math.min(n, 200)),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .default(50)
+      .transform(n => Math.min(n, 200)),
     purpose: label.optional(),
     status: z.enum(['pending', 'active', 'deleted', 'purged']).optional(),
     account: label.optional(),

@@ -2,6 +2,7 @@
 import dotenv from 'dotenv';
 import path from 'path';
 import { z } from 'zod';
+import '../shared/zodV3Messages';
 
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
@@ -17,6 +18,7 @@ const csv = z.string().transform(v =>
     .map(s => s.trim())
     .filter(Boolean)
 );
+// Env strings are parsed, so string defaults use .prefault (zod 4's .default skips parsing).
 // Durations in hours, e.g. TRASH_RETENTION_HOURS=168
 const hours = z.coerce.number().positive();
 
@@ -28,7 +30,7 @@ const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   STORAGE_PATH: z.string().default(path.join(process.cwd(), '.data')),
   LOG_LEVEL: z.string().default('info'),
-  TRUSTED_PROXIES: csv.default('loopback'),
+  TRUSTED_PROXIES: csv.prefault('loopback'),
 
   MAX_FILE_BYTES: z.coerce
     .number()
@@ -38,9 +40,9 @@ const envSchema = z.object({
     .default(MAX_FILE_BYTES_CAP),
   ALLOWED_KINDS: csv
     .pipe(z.array(z.enum(KINDS)))
-    .default('image,video,document'),
+    .prefault('image,video,document'),
   RATE_LIMIT_RPS: z.coerce.number().positive().default(20),
-  REQUIRE_ACCOUNT: bool.default('false'),
+  REQUIRE_ACCOUNT: bool.prefault('false'),
   DEFAULT_ACCOUNT_QUOTA_BYTES: z.coerce
     .number()
     .int()
@@ -55,11 +57,11 @@ const envSchema = z.object({
   IMAGE_PNG_QUALITY: z.coerce.number().int().min(1).max(100).default(80),
   IMAGE_MIN_SAVING_PERCENT: z.coerce.number().min(0).max(100).default(5),
   VARIANT_WIDTHS: csv
-    .pipe(z.array(z.coerce.number().int().positive()))
-    .default('64,128,256,512,768,1024,1536,2048'),
+    .pipe(z.array(z.coerce.number<string>().int().positive()))
+    .prefault('64,128,256,512,768,1024,1536,2048'),
   VARIANT_FORMATS: csv
     .pipe(z.array(z.enum(['jpg', 'png', 'webp', 'avif'])))
-    .default('jpg,png,webp,avif'),
+    .prefault('jpg,png,webp,avif'),
   VARIANT_CACHE_MAX_BYTES: z.coerce
     .number()
     .int()
