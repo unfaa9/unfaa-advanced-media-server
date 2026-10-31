@@ -9,16 +9,16 @@ This file guides Claude Code (claude.ai/code) when working in this repository.
 ## Commands
 
 ```bash
-yarn dev            # ts-node-dev with respawn, runs src/server.ts
-yarn build          # tsc: src -> dist
-yarn start          # node dist/server.js
-yarn lint:check     # eslint over .js/.ts
-yarn lint:fix
-yarn prettier:fix
-yarn lint-prettier  # lint + prettier (what the husky pre-commit runs via lint-staged)
+pnpm dev            # ts-node-dev with respawn, runs src/server.ts
+pnpm build          # tsc: src -> dist
+pnpm start          # node dist/server.js
+pnpm lint:check     # eslint over .js/.ts
+pnpm lint:fix
+pnpm prettier:fix
+pnpm lint-prettier  # lint + prettier (what the husky pre-commit runs via lint-staged)
 ```
 
-There are no tests (`yarn test` exits with an error on purpose).
+Package manager: pnpm 11 (pinned in `package.json` `packageManager`; `pnpm-workspace.yaml` `allowBuilds` lets prisma/sharp/esbuild run install scripts). Install with `pnpm install --frozen-lockfile`. Tests: `pnpm test` (vitest, `test/unit`).
 
 `postinstall` runs `prisma generate`, but the repo has **no `prisma/schema.prisma`**. If an install fails at that step, that is the reason.
 

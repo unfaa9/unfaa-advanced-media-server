@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "Media server: upload, compress, serve (Cloudflare CDN) and delete images, short videos, PDF and DOCX",
   "main": "dist/server.js",
+  "packageManager": "pnpm@11.21.0",
+  "engines": {
+    "node": ">=22.12"
+  },
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
