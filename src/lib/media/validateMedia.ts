@@ -1,6 +1,13 @@
 import fsp from 'fs/promises';
 import yauzl from 'yauzl';
 import ProblemError from '../../errors/ProblemError';
+import {
+  mp4Info,
+  validateAdts,
+  validateMp3,
+  validateOgg,
+  validateWav,
+} from './validateAudio';
 
 const invalid = (detail: string) => new ProblemError('invalid_content', detail);
 
@@ -117,8 +124,22 @@ export const validateNonImage = async (
     return {};
   }
   const buf = await fsp.readFile(file);
-  if (ext === 'mp4') return validateMp4(buf);
+  if (ext === 'mp4' || ext === 'm4a') {
+    const { faststart } = validateMp4(buf);
+    const { handlers, duration_ms } = mp4Info(buf);
+    // only sound tracks (Messenger / Instagram voice clips): stored as m4a audio
+    const sound_only = handlers.length > 0 && handlers.every(h => h === 'soun');
+    // an "M4A" holding a video track would be served as audio/mp4: refuse it
+    if (ext === 'm4a' && !sound_only) {
+      throw invalid('M4A must contain only audio');
+    }
+    return sound_only ? { faststart, duration_ms, sound_only } : { faststart };
+  }
   if (ext === 'webm') validateWebm(buf);
   if (ext === 'pdf') validatePdf(buf);
+  if (ext === 'ogg') return validateOgg(buf);
+  if (ext === 'mp3') return validateMp3(buf);
+  if (ext === 'aac') return validateAdts(buf);
+  if (ext === 'wav') return validateWav(buf);
   return {};
 };

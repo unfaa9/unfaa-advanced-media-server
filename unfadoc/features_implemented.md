@@ -3,7 +3,7 @@
 > **Applies to:** API v1 (Node/TypeScript build) · **Base URL:** `https://media.unfaa.com` (local: `http://localhost:5000`)
 > **Postman:** [`media-server.postman_collection.json`](media-server.postman_collection.json) (import it, then set `mediaBaseUrl` and `apiKey`)
 
-This server is a Node port of the Go media server described in [`../docs/`](../docs/api/README.md). It stores, compresses, serves and deletes **images, short videos, PDFs and DOCX files** (≤ 15 MB each) for our backends. Backends upload and manage files with an API key. Browsers only read files through Cloudflare-cached public URLs.
+This server is a Node port of the Go media server described in [`../docs/`](../docs/api/README.md). It stores, compresses, serves and deletes **images, short videos, audio, PDFs and DOCX files** (≤ 15 MB each; audio ≤ 20 MB) for our backends. Backends upload and manage files with an API key. Browsers only read files through Cloudflare-cached public URLs.
 
 ---
 
@@ -59,7 +59,7 @@ A missing scope returns `403 forbidden_scope`.
 | File size | `MAX_FILE_BYTES` (default and maximum 15 MB), enforced while streaming | `413 file_too_large` |
 | Parts per upload | exactly one part, named `file` | `400 invalid_request` |
 | Image size | 50 MP (`MAX_IMAGE_PIXELS`). Animated: 2× across all frames | `422 invalid_content` |
-| Allowed kinds | `ALLOWED_KINDS` (default `image,video,document`) | `415 unsupported_type` |
+| Allowed kinds | `ALLOWED_KINDS` (default `image,video,document,audio`) | `415 unsupported_type` |
 | Rate limit per key | `RATE_LIMIT_RPS` (default 20/s, burst 40) | `429 rate_limited` + `Retry-After` |
 | Failed auth per client IP | burst 30, then 1/s. Blocks **all** requests from that IP while exceeded | `429 rate_limited` |
 | Account quota | per account, default 5 GB | `507 quota_exceeded` |
@@ -120,7 +120,7 @@ curl -sS -X POST "$MEDIA/api/v1/files?confirm=true&purpose=avatar&owner_ref=user
 }
 ```
 
-- **Field presence:** `url` and `variants_url_template` appear only while the file is `pending` or `active`. `variants_url_template` appears only for JPEG, PNG and WebP images. Videos also return `meta.faststart`.
+- **Field presence:** `url` and `variants_url_template` appear only while the file is `pending` or `active`. `variants_url_template` appears only for JPEG, PNG and WebP images. Videos also return `meta.faststart`; audio returns `meta.duration_ms` + `meta.codec`.
 - **`sha256`:** the hash of the **stored** bytes, after compression.
 
 ### What the server does to each file
@@ -223,7 +223,7 @@ Send removals from a transactional outbox (see [`../docs/api/recipes/outbox-patt
 
 - **No DB on the read path:** delivery reads straight from disk. The URL maps to the file path, so deleted files 404 immediately.
 - **Variant rendering:** never upscaled, always sRGB and metadata-free, and transparent images get a white background in `jpg`. The first request renders the variant and caches it at `variants/<id>/<w>.<fmt>`. Concurrent requests for the same variant share one render, and renders are bounded to one per CPU.
-- **Which files have variants:** JPEG, PNG and WebP originals. GIF, video and documents have none (404).
+- **Which files have variants:** JPEG, PNG and WebP originals. GIF, video, audio and documents have none (404).
 
 **Headers on public responses:**
 

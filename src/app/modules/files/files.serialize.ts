@@ -34,7 +34,7 @@ export const serializeFile = (f: TFileWithRelations) => {
     ...(live && hasVariants(f)
       ? { variants_url_template: `${base}/i/${f.id}/{w}.{fmt}` }
       : {}),
-    ...(f.kind === 'video' ? { meta: f.meta } : {}),
+    ...(f.kind === 'video' || f.kind === 'audio' ? { meta: f.meta } : {}),
     account: f.account?.ref ?? null,
     purpose: f.purpose,
     original_name: f.originalName,

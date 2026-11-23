@@ -1,4 +1,4 @@
-# Videos and documents
+# Videos, audio and documents
 
 > API v1
 
@@ -17,6 +17,26 @@
 
 ```html
 <video controls preload="metadata" src="https://media.unfaa.com/f/0192f3c4-….mp4"></video>
+```
+
+## Audio
+
+- Accepted (by magic bytes): **OGG** (Opus or Vorbis), **MP3**, **M4A** (AAC in MP4), **AAC** (ADTS) and **WAV**.
+  AMR, FLAC, WMA, WebM-audio etc. are rejected with `415` — convert first (the backend does, with ffmpeg).
+- An MP4 whose only tracks are sound (Messenger / Instagram voice clips) is stored as `kind: audio`, `.m4a`.
+  An `.m4a` that holds a video track is refused (`422`).
+- Limit: **`MAX_AUDIO_BYTES`** (default 20 MB, max 25 MB), separate from `MAX_FILE_BYTES` (images, video, documents).
+  Over the limit → `413 file_too_large`.
+- Structural checks only (no decoding): Ogg pages chain to the end of the file, MP3 frames, ADTS frames, RIFF/WAVE
+  chunks, MP4 boxes. Truncated or disguised files → `422 invalid_content`.
+- `meta`: `duration_ms` (from the header; `null` when unknown), `codec` (`opus`, `vorbis`, `mp3`, `aac`, `pcm`),
+  M4A also `faststart`.
+- Served byte-for-byte with `Range` support and an exact `Content-Type` (`audio/ogg`, `audio/mpeg`, `audio/mp4`,
+  `audio/aac`, `audio/wav`) — WhatsApp checks it when it fetches a media link. No variants, no transcoding.
+- Same lifecycle as every other file: `pending` → confirm → `active`, refs, delete to trash, purge, quota, dedup.
+
+```html
+<audio controls preload="metadata" src="https://media.unfaa.com/f/0192f3c4-….ogg"></audio>
 ```
 
 ## PDF

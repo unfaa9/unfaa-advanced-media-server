@@ -6,7 +6,7 @@ import config from '../../../config';
 import ProblemError from '../../../errors/ProblemError';
 import { enqueuePurge, publicUrlsFor } from '../../../lib/cdn/cdn';
 import { processImage } from '../../../lib/media/processImage';
-import { sniff } from '../../../lib/media/sniff';
+import { AUDIO_ONLY_MP4, sniff, TMediaType } from '../../../lib/media/sniff';
 import { validateNonImage } from '../../../lib/media/validateMedia';
 import {
   originalPath,
@@ -154,6 +154,29 @@ const findDuplicate = async (sha: Buffer<ArrayBuffer>, account?: string) => {
 
 export type TUploadResult = { status: number; body: unknown };
 
+const MB = 1024 * 1024;
+
+/** Per-kind size limit: audio has its own (MAX_AUDIO_BYTES), everything else MAX_FILE_BYTES. */
+export const maxBytesFor = (kind: string): number =>
+  kind === 'audio' ? config.upload.maxAudioBytes : config.upload.maxFileBytes;
+
+// Kind enabled on this server + size within that kind's limit (the stream limit is the largest one).
+const assertAllowed = (type: TMediaType, size: number) => {
+  if (!config.upload.allowedKinds.includes(type.kind)) {
+    throw new ProblemError(
+      'unsupported_type',
+      `${type.kind} uploads are not enabled on this server`
+    );
+  }
+  const max = maxBytesFor(type.kind);
+  if (size > max) {
+    throw new ProblemError(
+      'file_too_large',
+      `${type.kind} files can be up to ${Math.floor(max / MB)} MB`
+    );
+  }
+};
+
 export const storeUpload = async (
   received: TReceivedFile,
   opts: TUploadOptions
@@ -161,16 +184,17 @@ export const storeUpload = async (
   const toClean = [received.path];
   metrics.uploadBytes.inc(received.size);
   try {
-    const type = await sniff(received.path);
+    let type: TMediaType | null = await sniff(received.path);
     if (!type) {
       throw new ProblemError('unsupported_type', 'file type is not allowed');
     }
-    if (!config.upload.allowedKinds.includes(type.kind)) {
-      throw new ProblemError(
-        'unsupported_type',
-        `${type.kind} uploads are not enabled on this server`
-      );
-    }
+    // An MP4 sniffs as video even when it only holds sound; decide by its tracks (only MP4s are read here).
+    const early =
+      type.ext === 'mp4'
+        ? await validateNonImage(received.path, type.ext)
+        : null;
+    if (early?.sound_only) type = AUDIO_ONLY_MP4;
+    assertAllowed(type, received.size);
 
     // Dedup before the expensive processing.
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -196,7 +220,8 @@ export const storeUpload = async (
       width = out.width;
       height = out.height;
     } else {
-      meta = await validateNonImage(received.path, type.ext);
+      meta = early ?? (await validateNonImage(received.path, type.ext));
+      if (type.kind !== 'audio') delete meta.sound_only;
     }
     const stored = await fsp.readFile(storedPath);
     const size = BigInt(stored.length);

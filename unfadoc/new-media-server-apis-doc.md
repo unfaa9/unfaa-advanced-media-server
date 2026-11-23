@@ -90,7 +90,7 @@ Most `/files` endpoints return this shape:
 | Field                    | Notes                                                                          |
 | ------------------------ | ------------------------------------------------------------------------------ |
 | `status`                 | `pending` → `active` → `deleted` → `purged` (see [Lifecycle](#file-lifecycle)) |
-| `kind`                   | `image`, `video` or `document`                                                 |
+| `kind`                   | `image`, `video`, `document` or `audio`                                        |
 | `size` / `original_size` | Stored bytes vs. uploaded bytes. `compressed` is `true` when stored is smaller |
 | `width` / `height`       | Images only, otherwise `null`                                                  |
 | `url`                    | Present only while the file is `pending` or `active`                           |
@@ -154,7 +154,7 @@ In Postman: Body → form-data → one row, key `file`, type **File**, with noth
 | Step               | Detail                                                                                                                                                                             |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Type detection     | By magic bytes only. Filename, extension and `Content-Type` are ignored                                                                                                            |
-| Allowed types      | JPEG, PNG, WebP, GIF · MP4, WebM · PDF · DOCX. Anything else returns `415`. Kinds can be limited with `ALLOWED_KINDS`                                                              |
+| Allowed types      | JPEG, PNG, WebP, GIF · MP4, WebM · OGG, MP3, M4A, AAC, WAV (audio ≤ `MAX_AUDIO_BYTES`, 20 MB) · PDF · DOCX. Anything else returns `415`. Kinds can be limited with `ALLOWED_KINDS`                                                              |
 | Size limit         | `MAX_FILE_BYTES` (default 15 MB), enforced while streaming → `413`                                                                                                                 |
 | Images             | Pixel limit (`MAX_IMAGE_PIXELS`), metadata stripped, orientation applied, re-compressed at the same resolution. Kept as-is if the saving would be below `IMAGE_MIN_SAVING_PERCENT` |
 | Video / PDF / DOCX | Structure validated and stored as uploaded                                                                                                                                         |
