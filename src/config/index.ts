@@ -8,7 +8,9 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 // 15 MB: the backend's PDF previews (PREVIEW_MAX_BYTES) are up to 15 MB.
 const MAX_FILE_BYTES_CAP = 15 * 1024 * 1024;
-const KINDS = ['image', 'video', 'document'] as const;
+// Audio (Inbox voice messages + customer audio): seller files up to 20 MB, Messenger sends up to 25 MB.
+const MAX_AUDIO_BYTES_CAP = 25 * 1024 * 1024;
+const KINDS = ['image', 'video', 'document', 'audio'] as const;
 
 const bool = z
   .enum(['true', 'false', '1', '0'])
@@ -39,9 +41,16 @@ const envSchema = z.object({
     .positive()
     .max(MAX_FILE_BYTES_CAP)
     .default(MAX_FILE_BYTES_CAP),
+  // Limit for audio files (images, video and documents use MAX_FILE_BYTES).
+  MAX_AUDIO_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(MAX_AUDIO_BYTES_CAP)
+    .default(20 * 1024 * 1024),
   ALLOWED_KINDS: csv
     .pipe(z.array(z.enum(KINDS)))
-    .prefault('image,video,document'),
+    .prefault('image,video,document,audio'),
   RATE_LIMIT_RPS: z.coerce.number().positive().default(20),
   REQUIRE_ACCOUNT: bool.prefault('false'),
   DEFAULT_ACCOUNT_QUOTA_BYTES: z.coerce
@@ -102,7 +111,13 @@ export default {
   logLevel: env.LOG_LEVEL,
   trustedProxies: env.TRUSTED_PROXIES,
   upload: {
+    // Per-kind limit, checked after sniffing. The stream limit (maxStreamBytes) is the largest of them,
+    // so busboy still stops an oversized upload without buffering it.
     maxFileBytes: env.MAX_FILE_BYTES,
+    maxAudioBytes: env.MAX_AUDIO_BYTES,
+    maxStreamBytes: env.ALLOWED_KINDS.includes('audio')
+      ? Math.max(env.MAX_FILE_BYTES, env.MAX_AUDIO_BYTES)
+      : env.MAX_FILE_BYTES,
     allowedKinds: env.ALLOWED_KINDS,
     rateLimitRps: env.RATE_LIMIT_RPS,
     requireAccount: env.REQUIRE_ACCOUNT,

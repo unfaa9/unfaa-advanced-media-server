@@ -21,6 +21,11 @@ export const EXTENSIONS = [
   'webm',
   'pdf',
   'docx',
+  'ogg',
+  'mp3',
+  'm4a',
+  'aac',
+  'wav',
 ] as const;
 export type TExt = (typeof EXTENSIONS)[number];
 

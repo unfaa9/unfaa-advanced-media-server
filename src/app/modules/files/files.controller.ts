@@ -27,7 +27,10 @@ const upload: RequestHandler = catchAsync(
       account: query.account,
     };
     const key = req.get('idempotency-key');
-    if (key !== undefined && (key.length === 0 || key.length > MAX_KEY_LENGTH)) {
+    if (
+      key !== undefined &&
+      (key.length === 0 || key.length > MAX_KEY_LENGTH)
+    ) {
       throw new ProblemError(
         'invalid_request',
         `Idempotency-Key must be 1–${MAX_KEY_LENGTH} characters`
@@ -37,14 +40,14 @@ const upload: RequestHandler = catchAsync(
     await filesService.assertDiskSpace();
 
     if (!key) {
-      const received = await receiveFile(req, config.upload.maxFileBytes);
+      const received = await receiveFile(req, config.upload.maxStreamBytes);
       const result = await filesService.storeUpload(received, options);
       res.status(result.status).json(result.body);
       return;
     }
 
     await withKeyLock(key, async () => {
-      const received = await receiveFile(req, config.upload.maxFileBytes);
+      const received = await receiveFile(req, config.upload.maxStreamBytes);
       const fp = fingerprint(req.query, received.sha256);
       const previous = await findResponse(key);
       if (previous) {
