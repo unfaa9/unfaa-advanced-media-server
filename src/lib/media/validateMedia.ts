@@ -115,6 +115,81 @@ export const validateDocx = async (file: string): Promise<void> => {
   }
 };
 
+// ---- ISO media on disk (mp4 / m4a / mov / 3gp) ------------------------------------------
+// Walks the top-level boxes with small reads (8/16-byte headers) and loads only the moov box,
+// so a 50 MB video never sits in memory.
+
+const MOOV_MAX_BYTES = 16 * 1024 * 1024;
+const MAX_TOP_BOXES = 10_000;
+// Old QuickTime files may start without ftyp.
+const MOV_FIRST_BOXES = ['ftyp', 'wide', 'free', 'skip', 'moov', 'mdat'];
+
+export const validateIsoFile = async (
+  file: string,
+  ext: string
+): Promise<{ faststart: boolean; moov: Buffer }> => {
+  const fd = await fsp.open(file, 'r');
+  try {
+    const { size: total } = await fd.stat();
+    const head = Buffer.alloc(16);
+    let offset = 0;
+    let moov: { at: number; size: number } | null = null;
+    let mdatAt = -1;
+    let count = 0;
+    while (offset < total) {
+      if (++count > MAX_TOP_BOXES) throw invalid('too many MP4 boxes');
+      if (offset + 8 > total) throw invalid('truncated MP4 box header');
+      const { bytesRead } = await fd.read(head, 0, 16, offset);
+      let size = head.readUInt32BE(0);
+      const type = head.toString('latin1', 4, 8);
+      let header = 8;
+      if (size === 1) {
+        if (bytesRead < 16) throw invalid('truncated MP4 box header');
+        const large = head.readBigUInt64BE(8);
+        if (large > BigInt(Number.MAX_SAFE_INTEGER))
+          throw invalid('bad MP4 box');
+        size = Number(large);
+        header = 16;
+      } else if (size === 0) {
+        size = total - offset; // box extends to end of file
+      }
+      if (size < header || offset + size > total) {
+        throw invalid('truncated or corrupt MP4');
+      }
+      if (count === 1) {
+        const ok =
+          ext === 'mov' ? MOV_FIRST_BOXES.includes(type) : type === 'ftyp';
+        if (!ok) throw invalid('MP4 must start with ftyp');
+      }
+      if (type === 'moov' && !moov) moov = { at: offset, size };
+      if (type === 'mdat' && mdatAt < 0) mdatAt = offset;
+      offset += size;
+    }
+    if (!moov || mdatAt < 0) throw invalid('MP4 is missing moov or mdat');
+    if (moov.size > MOOV_MAX_BYTES) throw invalid('MP4 moov box is too large');
+    const buf = Buffer.alloc(moov.size);
+    await fd.read(buf, 0, moov.size, moov.at);
+    return { faststart: moov.at < mdatAt, moov: buf };
+  } finally {
+    await fd.close();
+  }
+};
+
+const ISO_EXTS = ['mp4', 'm4a', 'mov', '3gp'];
+// WebM is checked on its header only (EBML + Segment); there is no truncation check.
+const WEBM_HEAD_BYTES = 1024 * 1024;
+
+const readHead = async (file: string, bytes: number): Promise<Buffer> => {
+  const fd = await fsp.open(file, 'r');
+  try {
+    const buf = Buffer.alloc(bytes);
+    const { bytesRead } = await fd.read(buf, 0, bytes, 0);
+    return buf.subarray(0, bytesRead);
+  } finally {
+    await fd.close();
+  }
+};
+
 export const validateNonImage = async (
   file: string,
   ext: string
@@ -123,19 +198,26 @@ export const validateNonImage = async (
     await validateDocx(file);
     return {};
   }
-  const buf = await fsp.readFile(file);
-  if (ext === 'mp4' || ext === 'm4a') {
-    const { faststart } = validateMp4(buf);
-    const { handlers, duration_ms } = mp4Info(buf);
+  if (ISO_EXTS.includes(ext)) {
+    const { faststart, moov } = await validateIsoFile(file, ext);
+    // mp4Info walks from the top level: a buffer holding just the moov box works.
+    const { handlers, duration_ms } = mp4Info(moov);
     // only sound tracks (Messenger / Instagram voice clips): stored as m4a audio
     const sound_only = handlers.length > 0 && handlers.every(h => h === 'soun');
     // an "M4A" holding a video track would be served as audio/mp4: refuse it
     if (ext === 'm4a' && !sound_only) {
       throw invalid('M4A must contain only audio');
     }
-    return sound_only ? { faststart, duration_ms, sound_only } : { faststart };
+    return sound_only
+      ? { faststart, duration_ms, sound_only }
+      : { faststart, ...(duration_ms != null ? { duration_ms } : {}) };
   }
-  if (ext === 'webm') validateWebm(buf);
+  if (ext === 'webm') {
+    validateWebm(await readHead(file, WEBM_HEAD_BYTES));
+    return {};
+  }
+  // pdf + audio are ≤ 25 MB: read whole.
+  const buf = await fsp.readFile(file);
   if (ext === 'pdf') validatePdf(buf);
   if (ext === 'ogg') return validateOgg(buf);
   if (ext === 'mp3') return validateMp3(buf);

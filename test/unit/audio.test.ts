@@ -89,7 +89,8 @@ describe('validate audio', () => {
     expect(audio.sound_only).toBe(true);
     aboutOneSecond(audio);
     const video = await validateNonImage(fix('video.mp4'), 'mp4');
-    expect(video).toEqual({ faststart: true });
+    expect(video).toMatchObject({ faststart: true });
+    expect(video.sound_only).toBeUndefined();
   });
 
   it.each([
@@ -124,13 +125,17 @@ describe('validate audio', () => {
 });
 
 describe('size limits', () => {
-  it('audio has its own limit (20 MB default); other kinds keep MAX_FILE_BYTES', () => {
+  it('audio has its own limit (20 MB default); video 50 MB; image/document keep MAX_FILE_BYTES', () => {
     expect(maxBytesFor('audio')).toBe(config.upload.maxAudioBytes);
     expect(config.upload.maxAudioBytes).toBe(20 * 1024 * 1024);
     expect(maxBytesFor('image')).toBe(config.upload.maxFileBytes);
-    expect(maxBytesFor('video')).toBe(config.upload.maxFileBytes);
+    expect(maxBytesFor('video')).toBe(50 * 1024 * 1024);
     expect(config.upload.maxStreamBytes).toBe(
-      Math.max(config.upload.maxFileBytes, config.upload.maxAudioBytes)
+      Math.max(
+        config.upload.maxFileBytes,
+        config.upload.maxAudioBytes,
+        config.upload.maxVideoBytes
+      )
     );
   });
 });

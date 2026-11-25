@@ -32,8 +32,9 @@ Env vars are validated by zod at startup (`src/config/index.ts`); see `.env.exam
 - `STORAGE_PATH` MUST be on the persistent volume (e.g. `/mnt/data/media` with the Coolify volume mounted at `/mnt/data`).
   A relative path resolves inside the container and is lost on every redeploy.
 - `PUBLIC_BASE_URL` builds every returned URL; the backend's `MEDIA_PUBLIC_URL` must equal it.
-- `MAX_FILE_BYTES` defaults to (and is capped at) 15 MB, the size of the backend's PDF previews. Audio has its own
-  `MAX_AUDIO_BYTES` (default 20 MB, cap 25 MB); the upload stream limit is the larger of the two. If prod sets
+- `MAX_FILE_BYTES` defaults to (and is capped at) 15 MB, the size of the backend's PDF previews (images + documents). Audio has its own
+  `MAX_AUDIO_BYTES` (default 20 MB, cap 25 MB); videos (mp4/mov/3gp/webm) are 50 MB (code constant `VIDEO_MAX_BYTES`, no env,
+  validated by box headers on disk, no full read); the upload stream limit is the largest allowed one. If prod sets
   `ALLOWED_KINDS` explicitly it must include `audio`.
 - API keys: `node dist/cli.js admin key create --name backend-prod` (scopes default to all).
 

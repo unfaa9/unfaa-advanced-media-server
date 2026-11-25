@@ -156,12 +156,16 @@ export type TUploadResult = { status: number; body: unknown };
 
 const MB = 1024 * 1024;
 
-/** Per-kind size limit: audio has its own (MAX_AUDIO_BYTES), everything else MAX_FILE_BYTES. */
+/** Per-kind size limit: audio = MAX_AUDIO_BYTES, video = VIDEO_MAX_BYTES (50 MB), everything else MAX_FILE_BYTES. */
 export const maxBytesFor = (kind: string): number =>
-  kind === 'audio' ? config.upload.maxAudioBytes : config.upload.maxFileBytes;
+  kind === 'audio'
+    ? config.upload.maxAudioBytes
+    : kind === 'video'
+    ? config.upload.maxVideoBytes
+    : config.upload.maxFileBytes;
 
 // Kind enabled on this server + size within that kind's limit (the stream limit is the largest one).
-const assertAllowed = (type: TMediaType, size: number) => {
+export const assertAllowed = (type: TMediaType, size: number) => {
   if (!config.upload.allowedKinds.includes(type.kind)) {
     throw new ProblemError(
       'unsupported_type',
@@ -188,11 +192,11 @@ export const storeUpload = async (
     if (!type) {
       throw new ProblemError('unsupported_type', 'file type is not allowed');
     }
-    // An MP4 sniffs as video even when it only holds sound; decide by its tracks (only MP4s are read here).
-    const early =
-      type.ext === 'mp4'
-        ? await validateNonImage(received.path, type.ext)
-        : null;
+    // An MP4 / MOV / 3GP sniffs as video even when it only holds sound; decide by its tracks
+    // (only these ISO files are read here, and only their box headers + moov).
+    const early = ['mp4', 'mov', '3gp'].includes(type.ext)
+      ? await validateNonImage(received.path, type.ext)
+      : null;
     if (early?.sound_only) type = AUDIO_ONLY_MP4;
     assertAllowed(type, received.size);
 
@@ -223,9 +227,15 @@ export const storeUpload = async (
       meta = early ?? (await validateNonImage(received.path, type.ext));
       if (type.kind !== 'audio') delete meta.sound_only;
     }
-    const stored = await fsp.readFile(storedPath);
-    const size = BigInt(stored.length);
-    const sha256 = crypto.createHash('sha256').update(stored).digest();
+    // Non-images are stored as received: reuse the streamed size + hash (no readFile of a 50 MB video).
+    let storedBytes = received.size;
+    let sha256 = received.sha256;
+    if (storedPath !== received.path) {
+      const stored = await fsp.readFile(storedPath);
+      storedBytes = stored.length;
+      sha256 = crypto.createHash('sha256').update(stored).digest();
+    }
+    const size = BigInt(storedBytes);
 
     const id = uuidv7();
     const dest = originalPath(id, type.ext);
@@ -274,7 +284,7 @@ export const storeUpload = async (
       throw e;
     }
     metrics.uploads.inc({ kind: type.kind, result: 'created' });
-    metrics.compressionSaved.inc(Math.max(0, received.size - stored.length));
+    metrics.compressionSaved.inc(Math.max(0, received.size - storedBytes));
     return { status: 201, body: serializeFile(await loadFile(id)) };
   } finally {
     await Promise.all(toClean.map(p => remove(p)));
