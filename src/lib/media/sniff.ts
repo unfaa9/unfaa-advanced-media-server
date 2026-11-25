@@ -21,6 +21,11 @@ const ALLOWED: Record<string, TMediaType> = {
   'video/mp4': { kind: 'video', mime: 'video/mp4', ext: 'mp4' },
   'video/x-m4v': { kind: 'video', mime: 'video/mp4', ext: 'mp4' },
   'video/webm': { kind: 'video', mime: 'video/webm', ext: 'webm' },
+  // iPhone videos; browsers other than Safari may not play every one (the portal offers Download).
+  'video/quicktime': { kind: 'video', mime: 'video/quicktime', ext: 'mov' },
+  // WhatsApp / old Android videos (ftyp brand 3gp4/3gp5/3g2…).
+  'video/3gpp': { kind: 'video', mime: 'video/3gpp', ext: '3gp' },
+  'video/3gpp2': { kind: 'video', mime: 'video/3gpp', ext: '3gp' },
   'application/pdf': { kind: 'document', mime: 'application/pdf', ext: 'pdf' },
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': {
     kind: 'document',
@@ -54,6 +59,8 @@ export const mimeByExt: Record<TExt, string> = {
   gif: 'image/gif',
   mp4: 'video/mp4',
   webm: 'video/webm',
+  mov: 'video/quicktime',
+  '3gp': 'video/3gpp',
   pdf: 'application/pdf',
   docx: ALLOWED[
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document'

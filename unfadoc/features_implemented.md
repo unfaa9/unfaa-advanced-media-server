@@ -56,7 +56,7 @@ A missing scope returns `403 forbidden_scope`.
 
 | Limit | Value | Error |
 |---|---|---|
-| File size | `MAX_FILE_BYTES` (default and maximum 15 MB), enforced while streaming | `413 file_too_large` |
+| File size | Per kind: image + document `MAX_FILE_BYTES` (default and maximum 15 MB), audio `MAX_AUDIO_BYTES` (20 MB), video 50 MB (code constant `VIDEO_MAX_BYTES`, no env). The stream stops at the largest allowed limit | `413 file_too_large` |
 | Parts per upload | exactly one part, named `file` | `400 invalid_request` |
 | Image size | 50 MP (`MAX_IMAGE_PIXELS`). Animated: 2× across all frames | `422 invalid_content` |
 | Allowed kinds | `ALLOWED_KINDS` (default `image,video,document,audio`) | `415 unsupported_type` |
@@ -291,7 +291,7 @@ Send removals from a transactional outbox (see [`../docs/api/recipes/outbox-patt
 | 404 | `not_found` | Unknown file id, account or route | no |
 | 409 | `invalid_state` | Confirming a deleted file, restoring outside the window, etc. | no |
 | 409 | `has_references` | `DELETE /files/{id}` without `force=true` while references exist | no |
-| 413 | `file_too_large` | Over `MAX_FILE_BYTES` | no |
+| 413 | `file_too_large` | Over the kind's limit (`MAX_FILE_BYTES` / `MAX_AUDIO_BYTES` / 50 MB video) | no |
 | 415 | `unsupported_type` | Detected type not allowed, or kind not in `ALLOWED_KINDS` | no |
 | 422 | `invalid_content` | Corrupt image, bomb, bad MP4/PDF/DOCX, macro DOCX | no |
 | 422 | `idempotency_key_reused` | Same key, different params or bytes | no |

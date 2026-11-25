@@ -6,8 +6,11 @@ import '../shared/zodV3Messages';
 
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
-// 15 MB: the backend's PDF previews (PREVIEW_MAX_BYTES) are up to 15 MB.
+// 15 MB: the backend's PDF previews (PREVIEW_MAX_BYTES) are up to 15 MB. Images + documents.
 const MAX_FILE_BYTES_CAP = 15 * 1024 * 1024;
+// Videos (Inbox customer videos are kept up to 50 MB; sellers send up to 15 MB, checked by the backend).
+// A code constant on purpose, no env.
+export const VIDEO_MAX_BYTES = 50 * 1024 * 1024;
 // Audio (Inbox voice messages + customer audio): seller files up to 20 MB, Messenger sends up to 25 MB.
 const MAX_AUDIO_BYTES_CAP = 25 * 1024 * 1024;
 const KINDS = ['image', 'video', 'document', 'audio'] as const;
@@ -41,7 +44,7 @@ const envSchema = z.object({
     .positive()
     .max(MAX_FILE_BYTES_CAP)
     .default(MAX_FILE_BYTES_CAP),
-  // Limit for audio files (images, video and documents use MAX_FILE_BYTES).
+  // Limit for audio files (images and documents use MAX_FILE_BYTES, videos VIDEO_MAX_BYTES).
   MAX_AUDIO_BYTES: z.coerce
     .number()
     .int()
@@ -115,9 +118,12 @@ export default {
     // so busboy still stops an oversized upload without buffering it.
     maxFileBytes: env.MAX_FILE_BYTES,
     maxAudioBytes: env.MAX_AUDIO_BYTES,
-    maxStreamBytes: env.ALLOWED_KINDS.includes('audio')
-      ? Math.max(env.MAX_FILE_BYTES, env.MAX_AUDIO_BYTES)
-      : env.MAX_FILE_BYTES,
+    maxVideoBytes: VIDEO_MAX_BYTES,
+    maxStreamBytes: Math.max(
+      env.MAX_FILE_BYTES,
+      env.ALLOWED_KINDS.includes('audio') ? env.MAX_AUDIO_BYTES : 0,
+      env.ALLOWED_KINDS.includes('video') ? VIDEO_MAX_BYTES : 0
+    ),
     allowedKinds: env.ALLOWED_KINDS,
     rateLimitRps: env.RATE_LIMIT_RPS,
     requireAccount: env.REQUIRE_ACCOUNT,

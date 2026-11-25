@@ -19,6 +19,8 @@ export const EXTENSIONS = [
   'gif',
   'mp4',
   'webm',
+  'mov',
+  '3gp',
   'pdf',
   'docx',
   'ogg',
